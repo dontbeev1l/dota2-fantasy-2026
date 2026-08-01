@@ -361,7 +361,7 @@ const DEGREE_WEIGHTS: Record<Degree, number> = {
   'V': 0.03,
 };
 
-function shiftDegree(deg: Degree, delta: number): Degree {
+export function shiftDegree(deg: Degree, delta: number): Degree {
   const idx = DEGREE_ORDER.indexOf(deg);
   const newIdx = Math.max(0, Math.min(DEGREE_ORDER.length - 1, idx + delta));
   return DEGREE_ORDER[newIdx];
@@ -940,31 +940,82 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
           }
         }
       }
-    } else if (tokenId === 'upgrade_2_downgrade_1_degree') {
+    }
+
+    const getPossibleUpgrades = (currentDeg: Degree): Array<{ degree: Degree; weight: number }> => {
+      const currentIdx = DEGREE_ORDER.indexOf(currentDeg);
+      if (currentIdx >= DEGREE_ORDER.length - 1) {
+        return [{ degree: 'V', weight: 1.0 }];
+      }
+
+      const higherDegrees = DEGREE_ORDER.slice(currentIdx + 1);
+      const totalWeight = higherDegrees.reduce((sum, d) => sum + DEGREE_WEIGHTS[d], 0);
+
+      if (totalWeight <= 0) {
+        return [{ degree: currentDeg, weight: 1.0 }];
+      }
+
+      return higherDegrees.map((d) => ({
+        degree: d,
+        weight: DEGREE_WEIGHTS[d] / totalWeight,
+      }));
+    };
+
+    const getPossibleDowngrades = (currentDeg: Degree): Array<{ degree: Degree; weight: number }> => {
+      const currentIdx = DEGREE_ORDER.indexOf(currentDeg);
+      if (currentIdx <= 0) {
+        return [{ degree: 'I', weight: 1.0 }];
+      }
+
+      const lowerDegrees = DEGREE_ORDER.slice(0, currentIdx);
+      const totalWeight = lowerDegrees.reduce((sum, d) => sum + DEGREE_WEIGHTS[d], 0);
+
+      if (totalWeight <= 0) {
+        return [{ degree: 'I', weight: 1.0 }];
+      }
+
+      return lowerDegrees.map((d) => ({
+        degree: d,
+        weight: DEGREE_WEIGHTS[d] / totalWeight,
+      }));
+    };
+
+    if (tokenId === 'upgrade_2_downgrade_1_degree') {
       for (let downIdx = 0; downIdx < 3; downIdx++) {
-        const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
-        for (let i = 0; i < 3; i++) {
-          if (i === downIdx) {
-            cloned[i].degree = shiftDegree(cloned[i].degree, -1);
-          } else {
-            cloned[i].degree = shiftDegree(cloned[i].degree, 1);
+        const upIndices = [0, 1, 2].filter((i) => i !== downIdx);
+        const downOptions = getPossibleDowngrades(targetSlot.emblems[downIdx].degree);
+        const up1Options = getPossibleUpgrades(targetSlot.emblems[upIndices[0]].degree);
+        const up2Options = getPossibleUpgrades(targetSlot.emblems[upIndices[1]].degree);
+
+        for (const dOpt of downOptions) {
+          for (const u1Opt of up1Options) {
+            for (const u2Opt of up2Options) {
+              const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
+              cloned[downIdx].degree = dOpt.degree;
+              cloned[upIndices[0]].degree = u1Opt.degree;
+              cloned[upIndices[1]].degree = u2Opt.degree;
+
+              const newScore = getSlotScoreWithEmblems(cloned);
+              outcomes.push({
+                delta: newScore - currentSlotScore,
+                weight: (1 / 3) * dOpt.weight * u1Opt.weight * u2Opt.weight,
+              });
+            }
           }
         }
-        const newScore = getSlotScoreWithEmblems(cloned);
-        outcomes.push({
-          delta: newScore - currentSlotScore,
-          weight: 1 / 3,
-        });
       }
     } else if (tokenId === 'upgrade_1_random_degree') {
       for (let eIdx = 0; eIdx < 3; eIdx++) {
-        const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
-        cloned[eIdx].degree = shiftDegree(cloned[eIdx].degree, 1);
-        const newScore = getSlotScoreWithEmblems(cloned);
-        outcomes.push({
-          delta: newScore - currentSlotScore,
-          weight: 1 / 3,
-        });
+        const upOptions = getPossibleUpgrades(targetSlot.emblems[eIdx].degree);
+        for (const uOpt of upOptions) {
+          const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
+          cloned[eIdx].degree = uOpt.degree;
+          const newScore = getSlotScoreWithEmblems(cloned);
+          outcomes.push({
+            delta: newScore - currentSlotScore,
+            weight: (1 / 3) * uOpt.weight,
+          });
+        }
       }
     } else if (tokenId === 'upgrade_lowest_degree') {
       const degreesVal = targetSlot.emblems.map((e) => DEGREE_ORDER.indexOf(e.degree));
@@ -972,13 +1023,16 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
       const lowestIndices = degreesVal.map((v, idx) => (v === minDegVal ? idx : -1)).filter((i) => i !== -1);
 
       for (const idx of lowestIndices) {
-        const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
-        cloned[idx].degree = shiftDegree(cloned[idx].degree, 1);
-        const newScore = getSlotScoreWithEmblems(cloned);
-        outcomes.push({
-          delta: newScore - currentSlotScore,
-          weight: 1 / lowestIndices.length,
-        });
+        const upOptions = getPossibleUpgrades(targetSlot.emblems[idx].degree);
+        for (const uOpt of upOptions) {
+          const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
+          cloned[idx].degree = uOpt.degree;
+          const newScore = getSlotScoreWithEmblems(cloned);
+          outcomes.push({
+            delta: newScore - currentSlotScore,
+            weight: (1 / lowestIndices.length) * uOpt.weight,
+          });
+        }
       }
     } else if (tokenId === 'reroll_first_red_char') {
       simulateFirstColorChar('red');

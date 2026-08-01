@@ -23,29 +23,53 @@ export function getTokenColorClass(tokenId: string): 'red' | 'blue' | 'green' | 
   return 'neutral';
 }
 
+const COLOR_ORDER: Record<string, number> = {
+  red: 1,
+  blue: 2,
+  green: 3,
+  neutral: 4,
+};
+
+export function sortTokensByColor<T extends { id?: string; tokenId?: string }>(tokens: T[]): T[] {
+  return [...tokens].sort((a, b) => {
+    const idA = a.id || a.tokenId || '';
+    const idB = b.id || b.tokenId || '';
+    const colorA = getTokenColorClass(idA);
+    const colorB = getTokenColorClass(idB);
+    return (COLOR_ORDER[colorA] || 99) - (COLOR_ORDER[colorB] || 99);
+  });
+}
+
 export function formatTokenText(text: string): string {
   const targetWords = [
     'першої',
     'перша',
+    'першу',
     'останньої',
     'остання',
+    'останню',
     'випадкової',
     'випадкова',
     'випадкову',
-    'одну випадкову',
+    'випадкові',
+    'випадкових',
     'одну',
+    'один',
     'дві',
+    'двох',
     'найнижчим',
     'найнижчою',
+    'найнижчим ступенем',
     'найнижчу',
+    'найменшим',
     'усіх',
     'усі',
     'всіх',
     'всі',
   ];
 
-  const regex = new RegExp(`\\b(${targetWords.join('|')})\\b`, 'gi');
-  return text.replace(regex, '<b class="target-emblem-kw">$1</b>');
+  const pattern = new RegExp(`(?<![а-яіїєґА-ЯІЇЄҐa-zA-Z0-9_])(${targetWords.join('|')})(?![а-яіїєґА-ЯІЇЄҐa-zA-Z0-9_])`, 'gui');
+  return text.replace(pattern, '<b class="target-emblem-kw">$1</b>');
 }
 
 export interface TokenCategory {
@@ -328,7 +352,8 @@ export class FantasyApp extends HTMLElement {
 
           <div class="token-categories-grid">
             ${TOKEN_CATEGORIES.map((cat) => {
-              const catTokens = REPLACEMENT_TOKENS.filter((t) => cat.tokenIds.includes(t.id));
+              const rawCatTokens = REPLACEMENT_TOKENS.filter((t) => cat.tokenIds.includes(t.id));
+              const catTokens = sortTokensByColor(rawCatTokens);
               const activeCount = catTokens.filter((t) => this.enabledTokenIds.has(t.id)).length;
 
               return `
@@ -350,13 +375,9 @@ export class FantasyApp extends HTMLElement {
                       .map((tk) => {
                         const isEnabled = this.enabledTokenIds.has(tk.id);
                         const colorClass = getTokenColorClass(tk.id);
-                        const colorDot = colorClass === 'red' ? (isEnabled ? '🔴' : '⭕') :
-                                         colorClass === 'blue' ? (isEnabled ? '🔵' : '⭕') :
-                                         colorClass === 'green' ? (isEnabled ? '🟢' : '⭕') :
-                                         (isEnabled ? '🟣' : '⚪');
                         return `
                           <button type="button" class="token-chip chip-color-${colorClass} ${isEnabled ? 'active' : ''}" data-token-id="${tk.id}" title="${tk.descriptionUk}">
-                            <span class="chip-status">${colorDot}</span>
+                            <span class="chip-status">${isEnabled ? '🟢' : '⚪'}</span>
                             <span class="chip-name">${formatTokenText(tk.nameUk)}</span>
                           </button>
                         `;
@@ -591,11 +612,6 @@ export class FantasyApp extends HTMLElement {
       const id = chip.getAttribute('data-token-id');
       if (id) {
         const isEnabled = this.enabledTokenIds.has(id);
-        const colorClass = getTokenColorClass(id);
-        const colorDot = colorClass === 'red' ? (isEnabled ? '🔴' : '⭕') :
-                         colorClass === 'blue' ? (isEnabled ? '🔵' : '⭕') :
-                         colorClass === 'green' ? (isEnabled ? '🟢' : '⭕') :
-                         (isEnabled ? '🟣' : '⚪');
 
         if (isEnabled) {
           chip.classList.add('active');
@@ -603,7 +619,7 @@ export class FantasyApp extends HTMLElement {
           chip.classList.remove('active');
         }
         const statusEl = chip.querySelector('.chip-status');
-        if (statusEl) statusEl.textContent = colorDot;
+        if (statusEl) statusEl.textContent = isEnabled ? '🟢' : '⚪';
       }
     });
     this.updateCategoryBadgesUI();
@@ -744,7 +760,9 @@ export class FantasyApp extends HTMLElement {
         return;
       }
 
-      tableBody.innerHTML = multiSlotSimulations
+      const sortedSimulations = sortTokensByColor(multiSlotSimulations);
+
+      tableBody.innerHTML = sortedSimulations
         .map((sim) => {
           const renderSlotCell = (slotData: typeof sim.core) => {
             const isGood = slotData.isRecommended;
