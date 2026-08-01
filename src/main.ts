@@ -765,30 +765,62 @@ export class FantasyApp extends HTMLElement {
       tableBody.innerHTML = sortedSimulations
         .map((sim) => {
           const renderSlotCell = (slotData: typeof sim.core) => {
-            const isGood = slotData.isRecommended;
-            const evFormatted = slotData.expectedValue >= 0 
-              ? `+${slotData.expectedValue.toLocaleString('uk-UA', { maximumFractionDigits: 0 })}` 
-              : slotData.expectedValue.toLocaleString('uk-UA', { maximumFractionDigits: 0 });
-            const maxGainFormatted = slotData.maxGain > 0 
-              ? `+${slotData.maxGain.toLocaleString('uk-UA', { maximumFractionDigits: 0 })}` 
-              : '0';
-            const maxLossFormatted = slotData.maxLoss < 0 
-              ? slotData.maxLoss.toLocaleString('uk-UA', { maximumFractionDigits: 0 }) 
+            const { expectedValue, maxGain, maxLoss, winRate, isRecommended } = slotData;
+
+            let badgeText = '🔴 РИЗИК';
+            let badgeClass = 'bg-bad';
+            let cellClass = '';
+
+            if (maxLoss === 0 && maxGain === 0) {
+              badgeText = '⚪ БЕЗ ЗМІН';
+              badgeClass = 'bg-neutral';
+              cellClass = 'cell-neutral';
+            } else if (maxLoss === 0 && expectedValue > 0) {
+              badgeText = '🟢 ВАРТО';
+              badgeClass = 'bg-good';
+              cellClass = 'cell-recommended';
+            } else if (isRecommended) {
+              badgeText = '🟢 ВАРТО';
+              badgeClass = 'bg-good';
+              cellClass = 'cell-recommended';
+            } else if (maxGain <= 0 && maxLoss < 0) {
+              badgeText = '🔴 ЗБИТКОВО';
+              badgeClass = 'bg-bad';
+              cellClass = 'cell-bad';
+            } else {
+              badgeText = '🔴 РИЗИК';
+              badgeClass = 'bg-bad';
+              cellClass = 'cell-bad';
+            }
+
+            const evFormatted = expectedValue >= 0 
+              ? `+${expectedValue.toLocaleString('uk-UA', { maximumFractionDigits: 0 })}` 
+              : expectedValue.toLocaleString('uk-UA', { maximumFractionDigits: 0 });
+
+            const maxGainFormatted = maxGain > 0 
+              ? `+${maxGain.toLocaleString('uk-UA', { maximumFractionDigits: 0 })}` 
               : '0';
 
+            const maxLossFormatted = maxLoss < 0 
+              ? maxLoss.toLocaleString('uk-UA', { maximumFractionDigits: 0 }) 
+              : '0';
+
+            const riskTxtClass = maxLoss < 0 ? 'txt-bad' : 'txt-neutral';
+            const evTxtClass = expectedValue > 0 ? 'txt-good' : expectedValue < 0 ? 'txt-bad' : 'txt-neutral';
+
             return `
-              <td class="cell-slot ${isGood ? 'cell-recommended' : ''}">
+              <td class="cell-slot ${cellClass}">
                 <div class="cell-top">
-                  <span class="cell-badge ${isGood ? 'bg-good' : 'bg-bad'}">
-                    ${isGood ? '🟢 ВАРТО' : '🔴 РИЗИК'}
+                  <span class="cell-badge ${badgeClass}">
+                    ${badgeText}
                   </span>
-                  <span class="cell-ev ${slotData.expectedValue >= 0 ? 'txt-good' : 'txt-bad'}">
+                  <span class="cell-ev ${evTxtClass}">
                     EV: ${evFormatted} оч.
                   </span>
                 </div>
                 <div class="cell-sub">
-                  <span>Шанс: <b>${slotData.winRate.toFixed(0)}%</b></span>
-                  <span>Виграш: <b class="txt-good">${maxGainFormatted}</b> | Ризик: <b class="txt-bad">${maxLossFormatted}</b></span>
+                  <span>Шанс: <b>${winRate.toFixed(0)}%</b></span>
+                  <span>Виграш: <b class="txt-good">${maxGainFormatted}</b> | Ризик: <b class="${riskTxtClass}">${maxLossFormatted}</b></span>
                 </div>
               </td>
             `;

@@ -1249,7 +1249,7 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
       }
     }
 
-    const isRecommended = expectedValue > 0 && winRate >= 50;
+    const isRecommended = (expectedValue > 0 && winRate >= 50) || (expectedValue > 0 && maxLoss === 0);
 
     return {
       tokenId,
