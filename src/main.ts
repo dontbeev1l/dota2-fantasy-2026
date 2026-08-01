@@ -16,6 +16,38 @@ import {
   REPLACEMENT_TOKENS,
 } from './calculator.worker';
 
+export function getTokenColorClass(tokenId: string): 'red' | 'blue' | 'green' | 'neutral' {
+  if (tokenId.includes('_red_')) return 'red';
+  if (tokenId.includes('_blue_')) return 'blue';
+  if (tokenId.includes('_green_')) return 'green';
+  return 'neutral';
+}
+
+export function formatTokenText(text: string): string {
+  const targetWords = [
+    'першої',
+    'перша',
+    'останньої',
+    'остання',
+    'випадкової',
+    'випадкова',
+    'випадкову',
+    'одну випадкову',
+    'одну',
+    'дві',
+    'найнижчим',
+    'найнижчою',
+    'найнижчу',
+    'усіх',
+    'усі',
+    'всіх',
+    'всі',
+  ];
+
+  const regex = new RegExp(`\\b(${targetWords.join('|')})\\b`, 'gi');
+  return text.replace(regex, '<b class="target-emblem-kw">$1</b>');
+}
+
 export interface TokenCategory {
   id: string;
   titleUk: string;
@@ -29,16 +61,23 @@ export const TOKEN_CATEGORIES: TokenCategory[] = [
     titleUk: 'Якість емблем (Degree I-V)',
     icon: '💎',
     tokenIds: [
+      'reroll_first_red_degree',
+      'reroll_first_blue_degree',
+      'reroll_first_green_degree',
+      'reroll_last_red_degree',
+      'reroll_last_blue_degree',
+      'reroll_last_green_degree',
       'reroll_random_red_degree',
       'reroll_random_blue_degree',
       'reroll_random_green_degree',
-      'upgrade_2_downgrade_1_degree',
-      'upgrade_1_random_degree',
-      'upgrade_lowest_degree',
       'reroll_all_red_degrees',
       'reroll_all_blue_degrees',
       'reroll_all_green_degrees',
+      'reroll_random_degree',
       'reroll_all_degrees',
+      'upgrade_1_random_degree',
+      'upgrade_lowest_degree',
+      'upgrade_2_downgrade_1_degree',
     ],
   },
   {
@@ -49,6 +88,15 @@ export const TOKEN_CATEGORIES: TokenCategory[] = [
       'reroll_first_red_char',
       'reroll_first_blue_char',
       'reroll_first_green_char',
+      'reroll_last_red_char',
+      'reroll_last_blue_char',
+      'reroll_last_green_char',
+      'reroll_random_red_char',
+      'reroll_random_blue_char',
+      'reroll_random_green_char',
+      'reroll_all_red_chars',
+      'reroll_all_blue_chars',
+      'reroll_all_green_chars',
       'reroll_random_emblem_char',
       'reroll_all_chars',
     ],
@@ -57,13 +105,32 @@ export const TOKEN_CATEGORIES: TokenCategory[] = [
     id: 'trait',
     titleUk: 'Риси емблем (Traits)',
     icon: '✨',
-    tokenIds: ['reroll_random_emblem_trait', 'reroll_all_traits'],
+    tokenIds: [
+      'reroll_first_red_trait',
+      'reroll_first_blue_trait',
+      'reroll_first_green_trait',
+      'reroll_last_red_trait',
+      'reroll_last_blue_trait',
+      'reroll_last_green_trait',
+      'reroll_random_red_trait',
+      'reroll_random_blue_trait',
+      'reroll_random_green_trait',
+      'reroll_all_red_traits',
+      'reroll_all_blue_traits',
+      'reroll_all_green_traits',
+      'reroll_random_emblem_trait',
+      'reroll_all_traits',
+    ],
   },
   {
     id: 'combined',
     titleUk: 'Комбіновані & Повні заміни',
     icon: '🔮',
-    tokenIds: ['reroll_trait_and_degree', 'full_reroll_random_emblem'],
+    tokenIds: [
+      'reroll_trait_and_degree',
+      'full_reroll_random_emblem',
+      'full_reroll_all_emblems',
+    ],
   },
 ];
 
@@ -282,10 +349,15 @@ export class FantasyApp extends HTMLElement {
                     ${catTokens
                       .map((tk) => {
                         const isEnabled = this.enabledTokenIds.has(tk.id);
+                        const colorClass = getTokenColorClass(tk.id);
+                        const colorDot = colorClass === 'red' ? (isEnabled ? '🔴' : '⭕') :
+                                         colorClass === 'blue' ? (isEnabled ? '🔵' : '⭕') :
+                                         colorClass === 'green' ? (isEnabled ? '🟢' : '⭕') :
+                                         (isEnabled ? '🟣' : '⚪');
                         return `
-                          <button type="button" class="token-chip ${isEnabled ? 'active' : ''}" data-token-id="${tk.id}" title="${tk.descriptionUk}">
-                            <span class="chip-status">${isEnabled ? '🟢' : '⚪'}</span>
-                            <span class="chip-name">${tk.nameUk}</span>
+                          <button type="button" class="token-chip chip-color-${colorClass} ${isEnabled ? 'active' : ''}" data-token-id="${tk.id}" title="${tk.descriptionUk}">
+                            <span class="chip-status">${colorDot}</span>
+                            <span class="chip-name">${formatTokenText(tk.nameUk)}</span>
                           </button>
                         `;
                       })
@@ -517,12 +589,21 @@ export class FantasyApp extends HTMLElement {
   private updateTokenChipsUI() {
     this.querySelectorAll('.token-chip').forEach((chip) => {
       const id = chip.getAttribute('data-token-id');
-      if (id && this.enabledTokenIds.has(id)) {
-        chip.classList.add('active');
-        chip.querySelector('.chip-status')!.textContent = '🟢';
-      } else {
-        chip.classList.remove('active');
-        chip.querySelector('.chip-status')!.textContent = '⚪';
+      if (id) {
+        const isEnabled = this.enabledTokenIds.has(id);
+        const colorClass = getTokenColorClass(id);
+        const colorDot = colorClass === 'red' ? (isEnabled ? '🔴' : '⭕') :
+                         colorClass === 'blue' ? (isEnabled ? '🔵' : '⭕') :
+                         colorClass === 'green' ? (isEnabled ? '🟢' : '⭕') :
+                         (isEnabled ? '🟣' : '⚪');
+
+        if (isEnabled) {
+          chip.classList.add('active');
+        } else {
+          chip.classList.remove('active');
+        }
+        const statusEl = chip.querySelector('.chip-status');
+        if (statusEl) statusEl.textContent = colorDot;
       }
     });
     this.updateCategoryBadgesUI();
@@ -667,6 +748,16 @@ export class FantasyApp extends HTMLElement {
         .map((sim) => {
           const renderSlotCell = (slotData: typeof sim.core) => {
             const isGood = slotData.isRecommended;
+            const evFormatted = slotData.expectedValue >= 0 
+              ? `+${slotData.expectedValue.toLocaleString('uk-UA', { maximumFractionDigits: 0 })}` 
+              : slotData.expectedValue.toLocaleString('uk-UA', { maximumFractionDigits: 0 });
+            const maxGainFormatted = slotData.maxGain > 0 
+              ? `+${slotData.maxGain.toLocaleString('uk-UA', { maximumFractionDigits: 0 })}` 
+              : '0';
+            const maxLossFormatted = slotData.maxLoss < 0 
+              ? slotData.maxLoss.toLocaleString('uk-UA', { maximumFractionDigits: 0 }) 
+              : '0';
+
             return `
               <td class="cell-slot ${isGood ? 'cell-recommended' : ''}">
                 <div class="cell-top">
@@ -674,33 +765,37 @@ export class FantasyApp extends HTMLElement {
                     ${isGood ? '🟢 ВАРТО' : '🔴 РИЗИК'}
                   </span>
                   <span class="cell-ev ${slotData.expectedValue >= 0 ? 'txt-good' : 'txt-bad'}">
-                    ${slotData.expectedValue >= 0 ? '+' : ''}${slotData.expectedValue.toFixed(1)} оч.
+                    EV: ${evFormatted} оч.
                   </span>
                 </div>
                 <div class="cell-sub">
-                  <span>Шанс: <b>${slotData.winRate.toFixed(0)}%</b> (${slotData.winOutcomes}/${slotData.totalOutcomes})</span>
-                  <span>Виграш: <b class="txt-good">+${slotData.maxGain.toFixed(0)}</b> | Ризик: <b class="txt-bad">${slotData.maxLoss.toFixed(0)}</b></span>
+                  <span>Шанс: <b>${slotData.winRate.toFixed(0)}%</b></span>
+                  <span>Виграш: <b class="txt-good">${maxGainFormatted}</b> | Ризик: <b class="txt-bad">${maxLossFormatted}</b></span>
                 </div>
               </td>
             `;
           };
 
           let bestSlotHtml = '';
+          const bestEvFmt = sim.bestSlotEv.toLocaleString('uk-UA', { maximumFractionDigits: 0 });
           if (sim.bestSlot === 'core') {
-            bestSlotHtml = `<span class="best-badge badge-core">🛡️ Основа (+${sim.bestSlotEv.toFixed(1)} оч.)</span>`;
+            bestSlotHtml = `<span class="best-badge badge-core">🛡️ Основа (+${bestEvFmt} оч.)</span>`;
           } else if (sim.bestSlot === 'mid') {
-            bestSlotHtml = `<span class="best-badge badge-mid">⚔️ Мід (+${sim.bestSlotEv.toFixed(1)} оч.)</span>`;
+            bestSlotHtml = `<span class="best-badge badge-mid">⚔️ Мід (+${bestEvFmt} оч.)</span>`;
           } else if (sim.bestSlot === 'support') {
-            bestSlotHtml = `<span class="best-badge badge-support">🪄 Підтримка (+${sim.bestSlotEv.toFixed(1)} оч.)</span>`;
+            bestSlotHtml = `<span class="best-badge badge-support">🪄 Підтримка (+${bestEvFmt} оч.)</span>`;
           } else {
             bestSlotHtml = `<span class="best-badge badge-none">❌ Не вигідно на жодному</span>`;
           }
 
+          const colorClass = getTokenColorClass(sim.tokenId);
+          const colorIcon = colorClass === 'red' ? '🔴' : colorClass === 'blue' ? '🔵' : colorClass === 'green' ? '🟢' : '🔮';
+
           return `
-            <tr>
+            <tr class="table-row-color-${colorClass}">
               <td class="cell-token-info">
-                <span class="token-title">🎲 ${sim.tokenNameUk}</span>
-                <span class="token-desc">${sim.tokenDescriptionUk}</span>
+                <span class="token-title">${colorIcon} ${formatTokenText(sim.tokenNameUk)}</span>
+                <span class="token-desc">${formatTokenText(sim.tokenDescriptionUk)}</span>
               </td>
               ${renderSlotCell(sim.core)}
               ${renderSlotCell(sim.mid)}
