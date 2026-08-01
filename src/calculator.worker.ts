@@ -115,8 +115,8 @@ export interface TokenSimulationResult {
   winOutcomes: number;
   lossOutcomes: number;
   neutralOutcomes: number;
-  winRate: number; // 0-100%
-  expectedValue: number; // EV delta score
+  winRate: number; // 0-100% (weighted probability)
+  expectedValue: number; // EV delta score (weighted)
   maxGain: number;
   maxLoss: number;
   isRecommended: boolean;
@@ -149,10 +149,30 @@ export interface WorkerResponse {
 
 const DEGREE_ORDER: Degree[] = ['I', 'II', 'III', 'IV', 'V'];
 
+// Probability weights for Emblem Degrees (I to V)
+// Tier I: 40%, Tier II: 30%, Tier III: 18%, Tier IV: 9%, Tier V: 3%
+const DEGREE_WEIGHTS: Record<Degree, number> = {
+  1: 0.40,
+  2: 0.30,
+  3: 0.18,
+  4: 0.09,
+  5: 0.03,
+  'I': 0.40,
+  'II': 0.30,
+  'III': 0.18,
+  'IV': 0.09,
+  'V': 0.03,
+};
+
 function shiftDegree(deg: Degree, delta: number): Degree {
   const idx = DEGREE_ORDER.indexOf(deg);
   const newIdx = Math.max(0, Math.min(DEGREE_ORDER.length - 1, idx + delta));
   return DEGREE_ORDER[newIdx];
+}
+
+interface WeightedOutcome {
+  delta: number;
+  weight: number;
 }
 
 self.onmessage = (e: MessageEvent<WorkerRequest>) => {
@@ -297,7 +317,7 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
       return maxScore;
     };
 
-    const deltas: number[] = [];
+    const outcomes: WeightedOutcome[] = [];
 
     const simulateColorDegreeReroll = (color: 'red' | 'green' | 'blue') => {
       const colorIndices = targetSlot.emblems
@@ -309,7 +329,10 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
           const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
           cloned[colorIndices[0]].degree = d1;
           const newScore = getSlotScoreWithEmblems(cloned);
-          deltas.push(newScore - currentSlotScore);
+          outcomes.push({
+            delta: newScore - currentSlotScore,
+            weight: DEGREE_WEIGHTS[d1],
+          });
         }
       } else if (colorIndices.length >= 2) {
         for (const d1 of DEGREE_ORDER) {
@@ -318,7 +341,10 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
             cloned[colorIndices[0]].degree = d1;
             cloned[colorIndices[1]].degree = d2;
             const newScore = getSlotScoreWithEmblems(cloned);
-            deltas.push(newScore - currentSlotScore);
+            outcomes.push({
+              delta: newScore - currentSlotScore,
+              weight: DEGREE_WEIGHTS[d1] * DEGREE_WEIGHTS[d2],
+            });
           }
         }
       }
@@ -329,13 +355,26 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
         .map((e, idx) => (e.color === 'red' ? idx : -1))
         .filter((idx) => idx !== -1);
 
-      for (const rIdx of redIndices) {
-        for (const deg of DEGREE_ORDER) {
-          if (deg === targetSlot.emblems[rIdx].degree) continue;
-          const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
-          cloned[rIdx].degree = deg;
-          const newScore = getSlotScoreWithEmblems(cloned);
-          deltas.push(newScore - currentSlotScore);
+      const numRed = redIndices.length;
+      if (numRed > 0) {
+        for (const rIdx of redIndices) {
+          const currentDeg = targetSlot.emblems[rIdx].degree;
+          const remainingWeightSum = DEGREE_ORDER.reduce(
+            (sum, d) => (d !== currentDeg ? sum + DEGREE_WEIGHTS[d] : sum),
+            0
+          );
+
+          for (const deg of DEGREE_ORDER) {
+            if (deg === currentDeg) continue;
+            const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
+            cloned[rIdx].degree = deg;
+            const newScore = getSlotScoreWithEmblems(cloned);
+            const w = (1 / numRed) * (DEGREE_WEIGHTS[deg] / remainingWeightSum);
+            outcomes.push({
+              delta: newScore - currentSlotScore,
+              weight: w,
+            });
+          }
         }
       }
     } else if (tokenId === 'upgrade_2_downgrade_1_degree') {
@@ -349,14 +388,20 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
           }
         }
         const newScore = getSlotScoreWithEmblems(cloned);
-        deltas.push(newScore - currentSlotScore);
+        outcomes.push({
+          delta: newScore - currentSlotScore,
+          weight: 1 / 3,
+        });
       }
     } else if (tokenId === 'upgrade_1_random_degree') {
       for (let eIdx = 0; eIdx < 3; eIdx++) {
         const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
         cloned[eIdx].degree = shiftDegree(cloned[eIdx].degree, 1);
         const newScore = getSlotScoreWithEmblems(cloned);
-        deltas.push(newScore - currentSlotScore);
+        outcomes.push({
+          delta: newScore - currentSlotScore,
+          weight: 1 / 3,
+        });
       }
     } else if (tokenId === 'reroll_all_red_degrees') {
       simulateColorDegreeReroll('red');
@@ -369,36 +414,48 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
       if (gIdx !== -1) {
         const currentGreenChar = targetSlot.emblems[gIdx].characteristic;
         const greenChars = CHARACTERISTICS_BY_COLOR['green'];
+        const numOptions = greenChars.length - 1;
         for (const gc of greenChars) {
           if (gc.key === currentGreenChar) continue;
           const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
           cloned[gIdx].characteristic = gc.key;
           const newScore = getSlotScoreWithEmblems(cloned);
-          deltas.push(newScore - currentSlotScore);
+          outcomes.push({
+            delta: newScore - currentSlotScore,
+            weight: 1 / Math.max(1, numOptions),
+          });
         }
       }
     } else if (tokenId === 'reroll_random_emblem_char') {
       for (let eIdx = 0; eIdx < 3; eIdx++) {
         const emb = targetSlot.emblems[eIdx];
         const chars = CHARACTERISTICS_BY_COLOR[emb.color];
+        const numOptions = chars.length - 1;
         for (const c of chars) {
           if (c.key === emb.characteristic) continue;
           const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
           cloned[eIdx].characteristic = c.key;
           const newScore = getSlotScoreWithEmblems(cloned);
-          deltas.push(newScore - currentSlotScore);
+          outcomes.push({
+            delta: newScore - currentSlotScore,
+            weight: (1 / 3) * (1 / Math.max(1, numOptions)),
+          });
         }
       }
     } else if (tokenId === 'reroll_random_emblem_trait') {
       const allTraits: Trait[] = ['fractal', 'charitable', 'vampiric', 'unique', 'friendly', null];
       for (let eIdx = 0; eIdx < 3; eIdx++) {
         const emb = targetSlot.emblems[eIdx];
+        const numOptions = allTraits.length - 1;
         for (const tr of allTraits) {
           if (tr === emb.trait) continue;
           const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
           cloned[eIdx].trait = tr;
           const newScore = getSlotScoreWithEmblems(cloned);
-          deltas.push(newScore - currentSlotScore);
+          outcomes.push({
+            delta: newScore - currentSlotScore,
+            weight: (1 / 3) * (1 / Math.max(1, numOptions)),
+          });
         }
       }
     } else if (tokenId === 'reroll_all_degrees') {
@@ -410,41 +467,47 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
             cloned[1].degree = d2;
             cloned[2].degree = d3;
             const newScore = getSlotScoreWithEmblems(cloned);
-            deltas.push(newScore - currentSlotScore);
+            outcomes.push({
+              delta: newScore - currentSlotScore,
+              weight: DEGREE_WEIGHTS[d1] * DEGREE_WEIGHTS[d2] * DEGREE_WEIGHTS[d3],
+            });
           }
         }
       }
     }
 
-    const totalOutcomes = deltas.length;
+    const totalWeight = outcomes.reduce((sum, o) => sum + o.weight, 0);
+
     let winOutcomes = 0;
     let lossOutcomes = 0;
     let neutralOutcomes = 0;
-    let sumGain = 0;
+    let winRate = 0;
+    let expectedValue = 0;
     let maxGain = 0;
     let maxLoss = 0;
 
-    for (const d of deltas) {
-      sumGain += d;
-      if (d > 0.1) {
+    for (const o of outcomes) {
+      const normW = totalWeight > 0 ? o.weight / totalWeight : 0;
+      expectedValue += o.delta * normW;
+
+      if (o.delta > 0.1) {
         winOutcomes++;
-        if (d > maxGain) maxGain = d;
-      } else if (d < -0.1) {
+        winRate += normW * 100;
+        if (o.delta > maxGain) maxGain = o.delta;
+      } else if (o.delta < -0.1) {
         lossOutcomes++;
-        if (d < maxLoss) maxLoss = d;
+        if (o.delta < maxLoss) maxLoss = o.delta;
       } else {
         neutralOutcomes++;
       }
     }
 
-    const winRate = totalOutcomes > 0 ? (winOutcomes / totalOutcomes) * 100 : 0;
-    const expectedValue = totalOutcomes > 0 ? sumGain / totalOutcomes : 0;
     const isRecommended = expectedValue > 0 && winRate >= 50;
 
     return {
       tokenId,
       tokenNameUk: tokenDef ? tokenDef.nameUk : tokenId,
-      totalOutcomes,
+      totalOutcomes: outcomes.length,
       winOutcomes,
       lossOutcomes,
       neutralOutcomes,
