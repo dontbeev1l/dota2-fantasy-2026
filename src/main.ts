@@ -16,6 +16,57 @@ import {
   REPLACEMENT_TOKENS,
 } from './calculator.worker';
 
+export interface TokenCategory {
+  id: string;
+  titleUk: string;
+  icon: string;
+  tokenIds: string[];
+}
+
+export const TOKEN_CATEGORIES: TokenCategory[] = [
+  {
+    id: 'degree',
+    titleUk: 'Якість емблем (Degree I-V)',
+    icon: '💎',
+    tokenIds: [
+      'reroll_random_red_degree',
+      'reroll_random_blue_degree',
+      'reroll_random_green_degree',
+      'upgrade_2_downgrade_1_degree',
+      'upgrade_1_random_degree',
+      'upgrade_lowest_degree',
+      'reroll_all_red_degrees',
+      'reroll_all_blue_degrees',
+      'reroll_all_green_degrees',
+      'reroll_all_degrees',
+    ],
+  },
+  {
+    id: 'characteristic',
+    titleUk: 'Характеристики емблем',
+    icon: '🎯',
+    tokenIds: [
+      'reroll_first_red_char',
+      'reroll_first_blue_char',
+      'reroll_first_green_char',
+      'reroll_random_emblem_char',
+      'reroll_all_chars',
+    ],
+  },
+  {
+    id: 'trait',
+    titleUk: 'Риси емблем (Traits)',
+    icon: '✨',
+    tokenIds: ['reroll_random_emblem_trait', 'reroll_all_traits'],
+  },
+  {
+    id: 'combined',
+    titleUk: 'Комбіновані & Повні заміни',
+    icon: '🔮',
+    tokenIds: ['reroll_trait_and_degree', 'full_reroll_random_emblem'],
+  },
+];
+
 const STORAGE_KEY = 'dota_fantasy_2026_state_v2';
 
 export class FantasyApp extends HTMLElement {
@@ -193,7 +244,7 @@ export class FantasyApp extends HTMLElement {
           ${this.slotStates.map((slot, sIdx) => this.renderSlotCard(slot, sIdx)).join('')}
         </main>
 
-        <!-- SEPARATE GLOBAL BLOCK: AVAILABLE REPLACEMENT TOKENS TOGGLER -->
+        <!-- SEPARATE GLOBAL BLOCK: GROUPED REPLACEMENT TOKENS -->
         <section class="tokens-selector-card">
           <div class="selector-card-header">
             <div class="selector-title-group">
@@ -208,14 +259,39 @@ export class FantasyApp extends HTMLElement {
             </div>
           </div>
 
-          <div class="tokens-chips-grid">
-            ${REPLACEMENT_TOKENS.map((tk) => {
-              const isEnabled = this.enabledTokenIds.has(tk.id);
+          <div class="token-categories-grid">
+            ${TOKEN_CATEGORIES.map((cat) => {
+              const catTokens = REPLACEMENT_TOKENS.filter((t) => cat.tokenIds.includes(t.id));
+              const activeCount = catTokens.filter((t) => this.enabledTokenIds.has(t.id)).length;
+
               return `
-                <button type="button" class="token-chip ${isEnabled ? 'active' : ''}" data-token-id="${tk.id}">
-                  <span class="chip-status">${isEnabled ? '🟢' : '⚪'}</span>
-                  <span class="chip-name">${tk.nameUk}</span>
-                </button>
+                <div class="category-card cat-${cat.id}">
+                  <div class="category-card-header">
+                    <div class="category-title-wrapper">
+                      <span class="cat-icon">${cat.icon}</span>
+                      <h3 class="cat-title">${cat.titleUk}</h3>
+                      <span class="cat-badge" id="cat-badge-${cat.id}">${activeCount}/${catTokens.length}</span>
+                    </div>
+                    <div class="cat-quick-actions">
+                      <button type="button" class="cat-action-btn btn-cat-enable" data-cat-id="${cat.id}">Всі</button>
+                      <button type="button" class="cat-action-btn btn-cat-disable" data-cat-id="${cat.id}">Скинути</button>
+                    </div>
+                  </div>
+
+                  <div class="category-chips-grid">
+                    ${catTokens
+                      .map((tk) => {
+                        const isEnabled = this.enabledTokenIds.has(tk.id);
+                        return `
+                          <button type="button" class="token-chip ${isEnabled ? 'active' : ''}" data-token-id="${tk.id}" title="${tk.descriptionUk}">
+                            <span class="chip-status">${isEnabled ? '🟢' : '⚪'}</span>
+                            <span class="chip-name">${tk.nameUk}</span>
+                          </button>
+                        `;
+                      })
+                      .join('')}
+                  </div>
+                </div>
               `;
             }).join('')}
           </div>
@@ -363,6 +439,30 @@ export class FantasyApp extends HTMLElement {
         return;
       }
 
+      const btnCatEnable = target.closest('.btn-cat-enable') as HTMLElement;
+      if (btnCatEnable) {
+        const catId = btnCatEnable.getAttribute('data-cat-id');
+        const cat = TOKEN_CATEGORIES.find((c) => c.id === catId);
+        if (cat) {
+          cat.tokenIds.forEach((id) => this.enabledTokenIds.add(id));
+          this.updateTokenChipsUI();
+          this.recalculateAll();
+        }
+        return;
+      }
+
+      const btnCatDisable = target.closest('.btn-cat-disable') as HTMLElement;
+      if (btnCatDisable) {
+        const catId = btnCatDisable.getAttribute('data-cat-id');
+        const cat = TOKEN_CATEGORIES.find((c) => c.id === catId);
+        if (cat) {
+          cat.tokenIds.forEach((id) => this.enabledTokenIds.delete(id));
+          this.updateTokenChipsUI();
+          this.recalculateAll();
+        }
+        return;
+      }
+
       const tokenChip = target.closest('.token-chip') as HTMLElement;
       if (tokenChip) {
         const tokenId = tokenChip.getAttribute('data-token-id');
@@ -376,6 +476,7 @@ export class FantasyApp extends HTMLElement {
             tokenChip.classList.add('active');
             tokenChip.querySelector('.chip-status')!.textContent = '🟢';
           }
+          this.updateCategoryBadgesUI();
           this.recalculateAll();
         }
         return;
@@ -422,6 +523,18 @@ export class FantasyApp extends HTMLElement {
       } else {
         chip.classList.remove('active');
         chip.querySelector('.chip-status')!.textContent = '⚪';
+      }
+    });
+    this.updateCategoryBadgesUI();
+  }
+
+  private updateCategoryBadgesUI() {
+    TOKEN_CATEGORIES.forEach((cat) => {
+      const catBadge = this.querySelector(`#cat-badge-${cat.id}`);
+      if (catBadge) {
+        const catTokens = REPLACEMENT_TOKENS.filter((t) => cat.tokenIds.includes(t.id));
+        const activeCount = catTokens.filter((t) => this.enabledTokenIds.has(t.id)).length;
+        catBadge.textContent = `${activeCount}/${catTokens.length}`;
       }
     });
   }

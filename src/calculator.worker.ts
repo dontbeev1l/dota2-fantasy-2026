@@ -62,6 +62,16 @@ export const REPLACEMENT_TOKENS: TokenDefinition[] = [
     descriptionUk: 'Випадкова червона емблема змінює ступінь на новий (I-V)',
   },
   {
+    id: 'reroll_random_blue_degree',
+    nameUk: 'Замінити якість випадкової синьої емблеми',
+    descriptionUk: 'Випадкова синя емблема змінює ступінь на новий (I-V)',
+  },
+  {
+    id: 'reroll_random_green_degree',
+    nameUk: 'Замінити якість випадкової зеленої емблеми',
+    descriptionUk: 'Випадкова зелена емблема змінює ступінь на новий (I-V)',
+  },
+  {
     id: 'upgrade_2_downgrade_1_degree',
     nameUk: 'Покращити дві якості і погіршити одну',
     descriptionUk: 'Дві емблеми отримують +1 ступінь, а одна -1 ступінь',
@@ -70,6 +80,11 @@ export const REPLACEMENT_TOKENS: TokenDefinition[] = [
     id: 'upgrade_1_random_degree',
     nameUk: 'Покращити одну випадкову якість',
     descriptionUk: 'Випадкова емблема підвищує свій ступінь на +1 рівень',
+  },
+  {
+    id: 'upgrade_lowest_degree',
+    nameUk: 'Покращити емблему з найнижчим ступенем',
+    descriptionUk: 'Емблема з найменшим ступенем на стягу підвищується на +1 рівень',
   },
   {
     id: 'reroll_all_red_degrees',
@@ -87,6 +102,16 @@ export const REPLACEMENT_TOKENS: TokenDefinition[] = [
     descriptionUk: 'Усі сині емблеми отримують новий ступінь (I-V)',
   },
   {
+    id: 'reroll_first_red_char',
+    nameUk: 'Змінити характеристику першої червоної емблеми',
+    descriptionUk: 'Перша червона емблема змінює характеристику на іншу червону',
+  },
+  {
+    id: 'reroll_first_blue_char',
+    nameUk: 'Змінити характеристику першої синьої емблеми',
+    descriptionUk: 'Перша синя емблема змінює характеристику на іншу синю',
+  },
+  {
     id: 'reroll_first_green_char',
     nameUk: 'Змінити характеристику першої зеленої емблеми',
     descriptionUk: 'Перша зелена емблема змінює характеристику на іншу зелену',
@@ -97,14 +122,34 @@ export const REPLACEMENT_TOKENS: TokenDefinition[] = [
     descriptionUk: 'Випадкова емблема отримує нову характеристику свого кольору',
   },
   {
+    id: 'reroll_all_chars',
+    nameUk: 'Замінити всі характеристики на стягу',
+    descriptionUk: 'Усі 3 емблеми отримують нові характеристики свого кольору',
+  },
+  {
     id: 'reroll_random_emblem_trait',
     nameUk: 'Замінити рису випадкової емблеми',
     descriptionUk: 'Випадкова емблема отримує нову рису',
   },
   {
+    id: 'reroll_all_traits',
+    nameUk: 'Замінити риси всіх емблем',
+    descriptionUk: 'Усі 3 емблеми отримують нові риси',
+  },
+  {
     id: 'reroll_all_degrees',
     nameUk: 'Замінити якість усіх емблем',
     descriptionUk: 'Усі 3 емблеми на слоту отримують нові ступені',
+  },
+  {
+    id: 'reroll_trait_and_degree',
+    nameUk: 'Замінити рису та якість випадкової емблеми',
+    descriptionUk: 'Випадкова емблема змінює і якість, і рису на нові',
+  },
+  {
+    id: 'full_reroll_random_emblem',
+    nameUk: 'Повна заміна випадкової емблеми',
+    descriptionUk: 'Випадкова емблема повністю змінює характеристику, якість і рису',
   },
 ];
 
@@ -350,15 +395,15 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
       }
     };
 
-    if (tokenId === 'reroll_random_red_degree') {
-      const redIndices = targetSlot.emblems
-        .map((e, idx) => (e.color === 'red' ? idx : -1))
+    const simulateRandomColorDegree = (color: 'red' | 'green' | 'blue') => {
+      const colorIndices = targetSlot.emblems
+        .map((e, idx) => (e.color === color ? idx : -1))
         .filter((idx) => idx !== -1);
 
-      const numRed = redIndices.length;
-      if (numRed > 0) {
-        for (const rIdx of redIndices) {
-          const currentDeg = targetSlot.emblems[rIdx].degree;
+      const numColor = colorIndices.length;
+      if (numColor > 0) {
+        for (const idx of colorIndices) {
+          const currentDeg = targetSlot.emblems[idx].degree;
           const remainingWeightSum = DEGREE_ORDER.reduce(
             (sum, d) => (d !== currentDeg ? sum + DEGREE_WEIGHTS[d] : sum),
             0
@@ -367,9 +412,9 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
           for (const deg of DEGREE_ORDER) {
             if (deg === currentDeg) continue;
             const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
-            cloned[rIdx].degree = deg;
+            cloned[idx].degree = deg;
             const newScore = getSlotScoreWithEmblems(cloned);
-            const w = (1 / numRed) * (DEGREE_WEIGHTS[deg] / remainingWeightSum);
+            const w = (1 / numColor) * (DEGREE_WEIGHTS[deg] / remainingWeightSum);
             outcomes.push({
               delta: newScore - currentSlotScore,
               weight: w,
@@ -377,6 +422,33 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
           }
         }
       }
+    };
+
+    const simulateFirstColorChar = (color: 'red' | 'green' | 'blue') => {
+      const cIdx = targetSlot.emblems.findIndex((e) => e.color === color);
+      if (cIdx !== -1) {
+        const currentChar = targetSlot.emblems[cIdx].characteristic;
+        const colorChars = CHARACTERISTICS_BY_COLOR[color];
+        const numOptions = colorChars.length - 1;
+        for (const gc of colorChars) {
+          if (gc.key === currentChar) continue;
+          const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
+          cloned[cIdx].characteristic = gc.key;
+          const newScore = getSlotScoreWithEmblems(cloned);
+          outcomes.push({
+            delta: newScore - currentSlotScore,
+            weight: 1 / Math.max(1, numOptions),
+          });
+        }
+      }
+    };
+
+    if (tokenId === 'reroll_random_red_degree') {
+      simulateRandomColorDegree('red');
+    } else if (tokenId === 'reroll_random_blue_degree') {
+      simulateRandomColorDegree('blue');
+    } else if (tokenId === 'reroll_random_green_degree') {
+      simulateRandomColorDegree('green');
     } else if (tokenId === 'upgrade_2_downgrade_1_degree') {
       for (let downIdx = 0; downIdx < 3; downIdx++) {
         const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
@@ -403,29 +475,32 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
           weight: 1 / 3,
         });
       }
+    } else if (tokenId === 'upgrade_lowest_degree') {
+      const degreesVal = targetSlot.emblems.map((e) => DEGREE_ORDER.indexOf(e.degree));
+      const minDegVal = Math.min(...degreesVal);
+      const lowestIndices = degreesVal.map((v, idx) => (v === minDegVal ? idx : -1)).filter((i) => i !== -1);
+
+      for (const idx of lowestIndices) {
+        const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
+        cloned[idx].degree = shiftDegree(cloned[idx].degree, 1);
+        const newScore = getSlotScoreWithEmblems(cloned);
+        outcomes.push({
+          delta: newScore - currentSlotScore,
+          weight: 1 / lowestIndices.length,
+        });
+      }
     } else if (tokenId === 'reroll_all_red_degrees') {
       simulateColorDegreeReroll('red');
     } else if (tokenId === 'reroll_all_green_degrees') {
       simulateColorDegreeReroll('green');
     } else if (tokenId === 'reroll_all_blue_degrees') {
       simulateColorDegreeReroll('blue');
+    } else if (tokenId === 'reroll_first_red_char') {
+      simulateFirstColorChar('red');
+    } else if (tokenId === 'reroll_first_blue_char') {
+      simulateFirstColorChar('blue');
     } else if (tokenId === 'reroll_first_green_char') {
-      const gIdx = targetSlot.emblems.findIndex((e) => e.color === 'green');
-      if (gIdx !== -1) {
-        const currentGreenChar = targetSlot.emblems[gIdx].characteristic;
-        const greenChars = CHARACTERISTICS_BY_COLOR['green'];
-        const numOptions = greenChars.length - 1;
-        for (const gc of greenChars) {
-          if (gc.key === currentGreenChar) continue;
-          const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
-          cloned[gIdx].characteristic = gc.key;
-          const newScore = getSlotScoreWithEmblems(cloned);
-          outcomes.push({
-            delta: newScore - currentSlotScore,
-            weight: 1 / Math.max(1, numOptions),
-          });
-        }
-      }
+      simulateFirstColorChar('green');
     } else if (tokenId === 'reroll_random_emblem_char') {
       for (let eIdx = 0; eIdx < 3; eIdx++) {
         const emb = targetSlot.emblems[eIdx];
@@ -440,6 +515,27 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
             delta: newScore - currentSlotScore,
             weight: (1 / 3) * (1 / Math.max(1, numOptions)),
           });
+        }
+      }
+    } else if (tokenId === 'reroll_all_chars') {
+      const chars0 = CHARACTERISTICS_BY_COLOR[targetSlot.emblems[0].color];
+      const chars1 = CHARACTERISTICS_BY_COLOR[targetSlot.emblems[1].color];
+      const chars2 = CHARACTERISTICS_BY_COLOR[targetSlot.emblems[2].color];
+
+      const count = chars0.length * chars1.length * chars2.length;
+      for (const c0 of chars0) {
+        for (const c1 of chars1) {
+          for (const c2 of chars2) {
+            const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
+            cloned[0].characteristic = c0.key;
+            cloned[1].characteristic = c1.key;
+            cloned[2].characteristic = c2.key;
+            const newScore = getSlotScoreWithEmblems(cloned);
+            outcomes.push({
+              delta: newScore - currentSlotScore,
+              weight: 1 / count,
+            });
+          }
         }
       }
     } else if (tokenId === 'reroll_random_emblem_trait') {
@@ -458,6 +554,24 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
           });
         }
       }
+    } else if (tokenId === 'reroll_all_traits') {
+      const allTraits: Trait[] = ['fractal', 'charitable', 'vampiric', 'unique', 'friendly', null];
+      const count = allTraits.length * allTraits.length * allTraits.length;
+      for (const t0 of allTraits) {
+        for (const t1 of allTraits) {
+          for (const t2 of allTraits) {
+            const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
+            cloned[0].trait = t0;
+            cloned[1].trait = t1;
+            cloned[2].trait = t2;
+            const newScore = getSlotScoreWithEmblems(cloned);
+            outcomes.push({
+              delta: newScore - currentSlotScore,
+              weight: 1 / count,
+            });
+          }
+        }
+      }
     } else if (tokenId === 'reroll_all_degrees') {
       for (const d1 of DEGREE_ORDER) {
         for (const d2 of DEGREE_ORDER) {
@@ -471,6 +585,57 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
               delta: newScore - currentSlotScore,
               weight: DEGREE_WEIGHTS[d1] * DEGREE_WEIGHTS[d2] * DEGREE_WEIGHTS[d3],
             });
+          }
+        }
+      }
+    } else if (tokenId === 'reroll_trait_and_degree') {
+      const allTraits: Trait[] = ['fractal', 'charitable', 'vampiric', 'unique', 'friendly', null];
+      for (let eIdx = 0; eIdx < 3; eIdx++) {
+        const emb = targetSlot.emblems[eIdx];
+        const currentDeg = emb.degree;
+        const currentTrait = emb.trait;
+
+        const remDegWeight = DEGREE_ORDER.reduce(
+          (sum, d) => (d !== currentDeg ? sum + DEGREE_WEIGHTS[d] : sum),
+          0
+        );
+
+        for (const deg of DEGREE_ORDER) {
+          if (deg === currentDeg) continue;
+          for (const tr of allTraits) {
+            if (tr === currentTrait) continue;
+            const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
+            cloned[eIdx].degree = deg;
+            cloned[eIdx].trait = tr;
+            const newScore = getSlotScoreWithEmblems(cloned);
+            const w = (1 / 3) * (DEGREE_WEIGHTS[deg] / remDegWeight) * (1 / (allTraits.length - 1));
+            outcomes.push({
+              delta: newScore - currentSlotScore,
+              weight: w,
+            });
+          }
+        }
+      }
+    } else if (tokenId === 'full_reroll_random_emblem') {
+      const allTraits: Trait[] = ['fractal', 'charitable', 'vampiric', 'unique', 'friendly', null];
+      for (let eIdx = 0; eIdx < 3; eIdx++) {
+        const emb = targetSlot.emblems[eIdx];
+        const colorChars = CHARACTERISTICS_BY_COLOR[emb.color];
+
+        for (const c of colorChars) {
+          for (const deg of DEGREE_ORDER) {
+            for (const tr of allTraits) {
+              const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
+              cloned[eIdx].characteristic = c.key;
+              cloned[eIdx].degree = deg;
+              cloned[eIdx].trait = tr;
+              const newScore = getSlotScoreWithEmblems(cloned);
+              const w = (1 / 3) * (1 / colorChars.length) * DEGREE_WEIGHTS[deg] * (1 / allTraits.length);
+              outcomes.push({
+                delta: newScore - currentSlotScore,
+                weight: w,
+              });
+            }
           }
         }
       }

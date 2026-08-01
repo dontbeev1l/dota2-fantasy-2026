@@ -547,37 +547,150 @@ body {
   border-color: var(--text-gold);
 }
 
-.tokens-chips-grid {
+.token-categories-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+@media (max-width: 1024px) {
+  .token-categories-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.category-card {
+  background: rgba(10, 15, 25, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
+  flex-direction: column;
+  gap: 0.75rem;
+  transition: border-color 0.2s ease;
+}
+
+.category-card.cat-degree {
+  border-left: 3px solid #f5c518;
+}
+.category-card.cat-characteristic {
+  border-left: 3px solid #38bdf8;
+}
+.category-card.cat-trait {
+  border-left: 3px solid #c084fc;
+}
+.category-card.cat-combined {
+  border-left: 3px solid #34d399;
+}
+
+.category-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.category-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.cat-icon {
+  font-size: 1rem;
+}
+
+.cat-title {
+  font-family: var(--font-subheading);
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.cat-badge {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text-gold);
+  padding: 0.1rem 0.45rem;
+  border-radius: 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  margin-left: 0.2rem;
+}
+
+.cat-quick-actions {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.cat-action-btn {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cat-action-btn:hover {
+  border-color: var(--text-gold);
+  color: var(--text-main);
+}
+
+.category-chips-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+}
+
+@media (max-width: 640px) {
+  .category-chips-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .token-chip {
-  background: rgba(10, 15, 25, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(15, 22, 35, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--text-muted);
-  padding: 0.35rem 0.75rem;
-  border-radius: 20px;
-  font-size: 0.82rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  transition: all 0.2s ease;
+  text-align: left;
+  line-height: 1.25;
+  min-height: 38px;
+  transition: all 0.15s ease;
 }
 
 .token-chip:hover {
   border-color: var(--text-gold);
   color: var(--text-main);
+  background: rgba(25, 35, 55, 0.85);
 }
 
 .token-chip.active {
-  background: rgba(245, 197, 24, 0.15);
+  background: rgba(245, 197, 24, 0.14);
   border-color: var(--text-gold);
   color: var(--text-gold);
-  box-shadow: 0 0 8px rgba(245, 197, 24, 0.2);
+  box-shadow: 0 0 6px rgba(245, 197, 24, 0.2);
+}
+
+.chip-status {
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.chip-name {
+  flex: 1;
 }
 
 /* --- SEPARATE BLOCK 2: MULTI-SLOT COMPARISON TABLE --- */
