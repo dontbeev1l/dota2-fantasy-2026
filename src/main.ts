@@ -72,6 +72,25 @@ export function formatTokenText(text: string): string {
   return text.replace(pattern, '<b class="target-emblem-kw">$1</b>');
 }
 
+export function getShortTokenName(nameUk: string): string {
+  return nameUk
+    .replace(/^Замінити якість /i, '')
+    .replace(/^Змінити характеристику /i, '')
+    .replace(/^Замінити характеристику /i, '')
+    .replace(/^Змінити характеристики /i, '')
+    .replace(/^Замінити всі характеристики на стягу/i, 'Усі характеристики')
+    .replace(/^Змінити рису /i, '')
+    .replace(/^Змінити риси /i, '')
+    .replace(/^Замінити рису /i, '')
+    .replace(/^Замінити риси /i, '')
+    .replace(/^Покращити одну випадкову якість/i, 'Одна випадкова емблема')
+    .replace(/^Покращити емблему з найнижчим ступенем/i, 'Найнижчий ступінь')
+    .replace(/^Покращити дві якості і погіршити одну/i, '2 покращення + 1 погіршення')
+    .replace(/^Замінити рису та якість випадкової емблеми/i, 'Риса та якість випадкової')
+    .replace(/^Повна заміна випадкової емблеми/i, 'Повна заміна випадкової')
+    .replace(/^Повна заміна всіх емблем на стягу/i, 'Повна заміна всіх');
+}
+
 export interface TokenCategory {
   id: string;
   titleUk: string;
@@ -82,8 +101,8 @@ export interface TokenCategory {
 export const TOKEN_CATEGORIES: TokenCategory[] = [
   {
     id: 'degree',
-    titleUk: 'Якість емблем (Degree I-V)',
-    icon: '💎',
+    titleUk: 'Замінити якість',
+    icon: '',
     tokenIds: [
       'reroll_first_red_degree',
       'reroll_first_blue_degree',
@@ -106,8 +125,8 @@ export const TOKEN_CATEGORIES: TokenCategory[] = [
   },
   {
     id: 'characteristic',
-    titleUk: 'Характеристики емблем',
-    icon: '🎯',
+    titleUk: 'Замінити характеристику',
+    icon: '',
     tokenIds: [
       'reroll_first_red_char',
       'reroll_first_blue_char',
@@ -127,8 +146,8 @@ export const TOKEN_CATEGORIES: TokenCategory[] = [
   },
   {
     id: 'trait',
-    titleUk: 'Риси емблем (Traits)',
-    icon: '✨',
+    titleUk: 'Замінити рису',
+    icon: '',
     tokenIds: [
       'reroll_first_red_trait',
       'reroll_first_blue_trait',
@@ -144,16 +163,6 @@ export const TOKEN_CATEGORIES: TokenCategory[] = [
       'reroll_all_green_traits',
       'reroll_random_emblem_trait',
       'reroll_all_traits',
-    ],
-  },
-  {
-    id: 'combined',
-    titleUk: 'Комбіновані & Повні заміни',
-    icon: '🔮',
-    tokenIds: [
-      'reroll_trait_and_degree',
-      'full_reroll_random_emblem',
-      'full_reroll_all_emblems',
     ],
   },
 ];
@@ -178,8 +187,8 @@ export class FantasyApp extends HTMLElement {
     {
       id: 'core',
       position: 'основа',
-      titleUk: 'Основа (Core)',
-      icon: '🛡️',
+      titleUk: 'Основа',
+      icon: '',
       emblems: [
         { color: 'red', characteristic: 'kills', degree: 'V', trait: 'vampiric' },
         { color: 'green', characteristic: 'teamfight_participation', degree: 'IV', trait: 'charitable' },
@@ -189,8 +198,8 @@ export class FantasyApp extends HTMLElement {
     {
       id: 'mid',
       position: 'цент',
-      titleUk: 'Мід (Mid)',
-      icon: '⚔️',
+      titleUk: 'Центр',
+      icon: '',
       emblems: [
         { color: 'red', characteristic: 'kills', degree: 'V', trait: 'fractal' },
         { color: 'blue', characteristic: 'runes_grabbed', degree: 'IV', trait: 'charitable' },
@@ -200,8 +209,8 @@ export class FantasyApp extends HTMLElement {
     {
       id: 'support',
       position: 'підтримка',
-      titleUk: 'Підтримка (Support)',
-      icon: '🪄',
+      titleUk: 'Підтримка',
+      icon: '',
       emblems: [
         { color: 'blue', characteristic: 'observer_wards_placed', degree: 'V', trait: 'friendly' },
         { color: 'green', characteristic: 'stun_seconds', degree: 'V', trait: 'friendly' },
@@ -289,43 +298,23 @@ export class FantasyApp extends HTMLElement {
   private render() {
     this.innerHTML = `
       <div class="app-container">
-        <!-- HEADER & ROSTER SUMMARY -->
+        <!-- COMPACT UNIFIED HEADER -->
         <header class="app-header">
-          <div class="header-top">
-            <h1 class="app-title">Dota 2 Fantasy 2026</h1>
-            
+          <div class="header-compact-bar">
+            <div class="header-left-group">
+              <h1 class="app-title">Dota 2 Fantasy 2026</h1>
+              <div class="header-total-score-badge">
+                <span class="total-score-label">Разом:</span>
+                <span class="total-score-val" id="total-roster-score">0.00</span>
+              </div>
+            </div>
+
             <!-- GLOBAL COACH TOP-3 CARD -->
             <div class="global-coach-optimization-card" id="coach-optimization-box">
               <div class="coach-opt-header">
-                <span class="opt-title">🎓 Топ-3 Титули Тренера:</span>
+                <span class="opt-title">Топ-3 Титули Тренера:</span>
               </div>
               <div class="coach-options-list"></div>
-            </div>
-          </div>
-
-          <!-- SUMMARY ROSTER CARD -->
-          <div class="roster-summary-card">
-            <div class="total-score-box">
-              <span class="trophy-icon">🏆</span>
-              <div class="total-score-info">
-                <span class="label">Разом за склад</span>
-                <span class="score-val" id="total-roster-score">0.00</span>
-              </div>
-            </div>
-
-            <div class="position-mini-scores">
-              <div class="mini-score-item">
-                <span class="pos-label">🛡️ Основа</span>
-                <span class="pos-score" id="mini-score-core">0.00</span>
-              </div>
-              <div class="mini-score-item">
-                <span class="pos-label">⚔️ Мід</span>
-                <span class="pos-score" id="mini-score-mid">0.00</span>
-              </div>
-              <div class="mini-score-item">
-                <span class="pos-label">🪄 Підтримка</span>
-                <span class="pos-score" id="mini-score-support">0.00</span>
-              </div>
             </div>
           </div>
         </header>
@@ -339,14 +328,12 @@ export class FantasyApp extends HTMLElement {
         <section class="tokens-selector-card">
           <div class="selector-card-header">
             <div class="selector-title-group">
-              <span class="section-icon">⚙️</span>
               <h2 class="section-title">Наявні Жетони Замін</h2>
-              <span class="section-subtitle">(увімкніть жетони, які зараз є у вас для аналізу)</span>
             </div>
 
             <div class="toggle-actions">
-              <button type="button" class="action-btn" id="btn-enable-all">✅ Увімкнути всі</button>
-              <button type="button" class="action-btn" id="btn-disable-all">❌ Вимкнути всі</button>
+              <button type="button" class="action-btn" id="btn-enable-all">Увімкнути всі</button>
+              <button type="button" class="action-btn" id="btn-disable-all">Вимкнути всі</button>
             </div>
           </div>
 
@@ -360,7 +347,6 @@ export class FantasyApp extends HTMLElement {
                 <div class="category-card cat-${cat.id}">
                   <div class="category-card-header">
                     <div class="category-title-wrapper">
-                      <span class="cat-icon">${cat.icon}</span>
                       <h3 class="cat-title">${cat.titleUk}</h3>
                       <span class="cat-badge" id="cat-badge-${cat.id}">${activeCount}/${catTokens.length}</span>
                     </div>
@@ -377,8 +363,8 @@ export class FantasyApp extends HTMLElement {
                         const colorClass = getTokenColorClass(tk.id);
                         return `
                           <button type="button" class="token-chip chip-color-${colorClass} ${isEnabled ? 'active' : ''}" data-token-id="${tk.id}" title="${tk.descriptionUk}">
-                            <span class="chip-status">${isEnabled ? '🟢' : '⚪'}</span>
-                            <span class="chip-name">${formatTokenText(tk.nameUk)}</span>
+                            <span class="chip-status"></span>
+                            <span class="chip-name">${formatTokenText(getShortTokenName(tk.nameUk))}</span>
                           </button>
                         `;
                       })
@@ -388,29 +374,27 @@ export class FantasyApp extends HTMLElement {
               `;
             }).join('')}
           </div>
-        </section>
-
-        <!-- MULTI-SLOT COMPARISON TABLE SECTION -->
-        <section class="tokens-table-section">
-          <div class="table-card-header">
-            <h2 class="table-title">📊 Аналіз та Порівняльна Таблиця Замін за Слотами</h2>
-          </div>
-
-          <div class="table-responsive-wrapper">
-            <table class="tokens-comparison-table">
-              <thead>
-                <tr>
-                  <th class="col-token">Жетон / Заміна</th>
-                  <th class="col-slot">🛡️ Основа</th>
-                  <th class="col-slot">⚔️ Мід</th>
-                  <th class="col-slot">🪄 Підтримка</th>
-                  <th class="col-recommend">💡 Найкраще використати</th>
-                </tr>
-              </thead>
-              <tbody id="tokens-table-body">
-                <!-- Dynamically rendered table rows -->
-              </tbody>
-            </table>
+          <!-- COMPARISON TABLE CARD (MATCHING TOP TEAMS CARD STYLE) -->
+          <div class="comparison-table-card">
+            <div class="teams-opt-header">
+              <span>Аналіз та Порівняльна Таблиця Замін за Слотами</span>
+            </div>
+            <div class="table-responsive-wrapper">
+              <table class="tokens-comparison-table">
+                <thead>
+                  <tr>
+                    <th class="col-token">Жетон / Заміна</th>
+                    <th class="col-slot">Основа</th>
+                    <th class="col-slot">Центр</th>
+                    <th class="col-slot">Підтримка</th>
+                    <th class="col-recommend">Найкраще використати</th>
+                  </tr>
+                </thead>
+                <tbody id="tokens-table-body">
+                  <!-- Dynamically rendered table rows -->
+                </tbody>
+              </table>
+            </div>
           </div>
         </section>
       </div>
@@ -423,25 +407,22 @@ export class FantasyApp extends HTMLElement {
         <!-- SLOT HEADER -->
         <div class="slot-header">
           <div class="slot-title-group">
-            <span class="slot-icon">${slot.icon}</span>
             <h2 class="slot-title">${slot.titleUk}</h2>
           </div>
           <span class="slot-score-badge" id="score-badge-${slot.id}">0.00</span>
         </div>
 
-        <!-- TOP 3 TEAMS OPTIMIZATION LIST -->
-        <div class="top-teams-card" id="top-teams-box-${slot.id}">
-          <div class="teams-opt-header">
-            <span>🥇 Топ-3 Команди для слота:</span>
-          </div>
-          <div class="teams-options-list"></div>
-        </div>
-
-        <div class="players-inline" id="players-list-${slot.id}"></div>
-
         <!-- EMBLEMS LIST -->
         <div class="emblems-section">
           ${slot.emblems.map((emb, eIdx) => this.renderEmblemItem(sIdx, emb, eIdx)).join('')}
+        </div>
+
+        <!-- TOP 3 TEAMS OPTIMIZATION LIST -->
+        <div class="top-teams-card" id="top-teams-box-${slot.id}">
+          <div class="teams-opt-header">
+            <span>Топ-3 Команди для слота:</span>
+          </div>
+          <div class="teams-options-list"></div>
         </div>
       </article>
     `;
@@ -452,8 +433,8 @@ export class FantasyApp extends HTMLElement {
 
     return `
       <div class="emblem-item color-${emb.color}" data-slot="${sIdx}" data-emblem="${eIdx}">
-        <!-- ROW 1: CHARACTERISTIC SELECT + MULTIPLIER BADGE -->
-        <div class="emblem-top-row">
+        <!-- HEADER: CHARACTERISTIC SELECT + PERCENTAGE -->
+        <div class="emblem-header">
           <select class="custom-select char-select compact-select" data-slot="${sIdx}" data-emblem="${eIdx}">
             ${colorCharList
               .map(
@@ -465,31 +446,32 @@ export class FantasyApp extends HTMLElement {
               )
               .join('')}
           </select>
-          <span class="emblem-mult-badge" id="mult-tag-${sIdx}-${eIdx}">x1.00</span>
+          <span class="emblem-mult-val" id="mult-tag-${sIdx}-${eIdx}">100%</span>
         </div>
 
-        <!-- ROW 2: DEGREE SELECTOR -->
-        <div class="degree-selector">
-          ${DEGREES.map(
-            (d) => `
-            <button type="button" class="degree-btn ${emb.degree === d.value ? 'active' : ''}"
-              data-slot="${sIdx}" data-emblem="${eIdx}" data-degree="${d.value}">
-              ${d.value}
-            </button>
-          `
-          ).join('')}
-        </div>
+        <!-- BODY: DEGREE SELECTOR + TRAIT SELECT -->
+        <div class="emblem-body">
+          <div class="degree-selector">
+            ${DEGREES.map(
+              (d) => `
+              <button type="button" class="degree-btn ${emb.degree === d.value ? 'active' : ''}"
+                data-slot="${sIdx}" data-emblem="${eIdx}" data-degree="${d.value}">
+                ${d.value}
+              </button>
+            `
+            ).join('')}
+          </div>
 
-        <!-- ROW 3: TRAIT / QUALITY SELECT -->
-        <select class="custom-select trait-select compact-select" data-slot="${sIdx}" data-emblem="${eIdx}">
-          ${TRAITS.map(
-            (tr) => `
-            <option value="${tr.key || 'none'}" ${tr.key === emb.trait ? 'selected' : ''}>
-              ${tr.icon} ${tr.nameUk}
-            </option>
-          `
-          ).join('')}
-        </select>
+          <select class="custom-select trait-select compact-select" data-slot="${sIdx}" data-emblem="${eIdx}">
+            ${TRAITS.map(
+              (tr) => `
+              <option value="${tr.key || 'none'}" ${tr.key === emb.trait ? 'selected' : ''}>
+                ${tr.icon} ${tr.nameUk}
+              </option>
+            `
+            ).join('')}
+          </select>
+        </div>
       </div>
     `;
   }
@@ -563,11 +545,9 @@ export class FantasyApp extends HTMLElement {
           if (this.enabledTokenIds.has(tokenId)) {
             this.enabledTokenIds.delete(tokenId);
             tokenChip.classList.remove('active');
-            tokenChip.querySelector('.chip-status')!.textContent = '⚪';
           } else {
             this.enabledTokenIds.add(tokenId);
             tokenChip.classList.add('active');
-            tokenChip.querySelector('.chip-status')!.textContent = '🟢';
           }
           this.updateCategoryBadgesUI();
           this.recalculateAll();
@@ -618,8 +598,6 @@ export class FantasyApp extends HTMLElement {
         } else {
           chip.classList.remove('active');
         }
-        const statusEl = chip.querySelector('.chip-status');
-        if (statusEl) statusEl.textContent = isEnabled ? '🟢' : '⚪';
       }
     });
     this.updateCategoryBadgesUI();
@@ -658,16 +636,19 @@ export class FantasyApp extends HTMLElement {
     if (coachBox) {
       coachBox.innerHTML = `
         <div class="coach-opt-header">
-          <span class="opt-title">🎓 Топ-3 Титули Тренера:</span>
+          <span class="opt-title">Топ-3 Титули Тренера:</span>
         </div>
         <div class="coach-options-list">
           ${topCoachCombos
             .map(
               (c, idx) => `
             <button type="button" class="coach-option-btn ${idx === this.selectedCoachIdx ? 'active' : ''}" data-coach-idx="${idx}">
-              <span class="rank-num">#${idx + 1}</span>
-              <span class="combo-names">${c.attrNameUk} + ${c.rankNameUk}</span>
-              <span class="combo-score">+${c.totalScore.toLocaleString('uk-UA', { maximumFractionDigits: 1 })}</span>
+              <span class="coach-rank-box">#${idx + 1}</span>
+              <span class="coach-info-group">
+                <span class="coach-name">${c.attrNameUk}</span>
+                <span class="coach-tag-code">[${c.rankNameUk}]</span>
+              </span>
+              <span class="coach-score">+${c.totalScore.toLocaleString('uk-UA', { maximumFractionDigits: 1 })}</span>
             </button>
           `
             )
@@ -692,7 +673,7 @@ export class FantasyApp extends HTMLElement {
       if (topTeamsBox) {
         topTeamsBox.innerHTML = `
           <div class="teams-opt-header">
-            <span>🥇 Топ-3 Команди для слота:</span>
+            <span>Топ-3 Команди для слота:</span>
           </div>
           <div class="teams-options-list">
             ${topTeams
@@ -700,8 +681,11 @@ export class FantasyApp extends HTMLElement {
                 (t, idx) => `
               <button type="button" class="team-option-btn ${idx === this.selectedTeamIdx[sIdx] ? 'active' : ''}"
                 data-slot="${sIdx}" data-team-idx="${idx}">
-                <span class="team-rank">#${idx + 1}</span>
-                <span class="team-name-tag">${t.teamName} (${t.tag})</span>
+                <span class="team-rank-box">#${idx + 1}</span>
+                <span class="team-info-group">
+                  <span class="team-name">${t.teamName}</span>
+                  <span class="team-tag-code">[${t.tag}]</span>
+                </span>
                 <span class="team-score">${t.score.toLocaleString('uk-UA', { maximumFractionDigits: 1 })} оч.</span>
               </button>
             `
@@ -723,19 +707,12 @@ export class FantasyApp extends HTMLElement {
         miniScore.textContent = activeTeam.score.toLocaleString('uk-UA', { maximumFractionDigits: 1 });
       }
 
-      // Update Player Badges
-      const playersBox = this.querySelector(`#players-list-${slot.id}`);
-      if (playersBox) {
-        playersBox.innerHTML = result.players
-          .map((pName) => `<span class="player-tag">👤 ${pName}</span>`)
-          .join('');
-      }
-
       // Update Emblem Multipliers
       for (let eIdx = 0; eIdx < result.emblemMultipliers.length; eIdx++) {
         const multTag = this.querySelector(`#mult-tag-${sIdx}-${eIdx}`);
         if (multTag) {
-          multTag.textContent = `x${result.emblemMultipliers[eIdx].toFixed(2)}`;
+          const pctVal = Math.round(result.emblemMultipliers[eIdx] * 100);
+          multTag.textContent = `${pctVal}%`;
         }
       }
     }
@@ -753,7 +730,7 @@ export class FantasyApp extends HTMLElement {
         tableBody.innerHTML = `
           <tr>
             <td colspan="5" class="empty-table-msg">
-              ⚪ Не вибрано жодного жетону. Увімкніть жетони вище, щоб побачити аналіз!
+              Не вибрано жодного жетону. Увімкніть жетони вище, щоб побачити аналіз!
             </td>
           </tr>
         `;
@@ -767,28 +744,28 @@ export class FantasyApp extends HTMLElement {
           const renderSlotCell = (slotData: typeof sim.core) => {
             const { expectedValue, maxGain, maxLoss, winRate, isRecommended } = slotData;
 
-            let badgeText = '🔴 РИЗИК';
+            let badgeText = 'РИЗИК';
             let badgeClass = 'bg-bad';
             let cellClass = '';
 
             if (maxLoss === 0 && maxGain === 0) {
-              badgeText = '⚪ БЕЗ ЗМІН';
+              badgeText = 'БЕЗ ЗМІН';
               badgeClass = 'bg-neutral';
               cellClass = 'cell-neutral';
             } else if (maxLoss === 0 && expectedValue > 0) {
-              badgeText = '🟢 ВАРТО';
+              badgeText = 'ВАРТО';
               badgeClass = 'bg-good';
               cellClass = 'cell-recommended';
             } else if (isRecommended) {
-              badgeText = '🟢 ВАРТО';
+              badgeText = 'ВАРТО';
               badgeClass = 'bg-good';
               cellClass = 'cell-recommended';
             } else if (maxGain <= 0 && maxLoss < 0) {
-              badgeText = '🔴 ЗБИТКОВО';
+              badgeText = 'ЗБИТКОВО';
               badgeClass = 'bg-bad';
               cellClass = 'cell-bad';
             } else {
-              badgeText = '🔴 РИЗИК';
+              badgeText = 'РИЗИК';
               badgeClass = 'bg-bad';
               cellClass = 'cell-bad';
             }
@@ -829,22 +806,21 @@ export class FantasyApp extends HTMLElement {
           let bestSlotHtml = '';
           const bestEvFmt = sim.bestSlotEv.toLocaleString('uk-UA', { maximumFractionDigits: 0 });
           if (sim.bestSlot === 'core') {
-            bestSlotHtml = `<span class="best-badge badge-core">🛡️ Основа (+${bestEvFmt} оч.)</span>`;
+            bestSlotHtml = `<span class="best-badge badge-core">Основа (+${bestEvFmt} оч.)</span>`;
           } else if (sim.bestSlot === 'mid') {
-            bestSlotHtml = `<span class="best-badge badge-mid">⚔️ Мід (+${bestEvFmt} оч.)</span>`;
+            bestSlotHtml = `<span class="best-badge badge-mid">Мід (+${bestEvFmt} оч.)</span>`;
           } else if (sim.bestSlot === 'support') {
-            bestSlotHtml = `<span class="best-badge badge-support">🪄 Підтримка (+${bestEvFmt} оч.)</span>`;
+            bestSlotHtml = `<span class="best-badge badge-support">Підтримка (+${bestEvFmt} оч.)</span>`;
           } else {
-            bestSlotHtml = `<span class="best-badge badge-none">❌ Не вигідно на жодному</span>`;
+            bestSlotHtml = `<span class="best-badge badge-none">Не вигідно на жодному</span>`;
           }
 
           const colorClass = getTokenColorClass(sim.tokenId);
-          const colorIcon = colorClass === 'red' ? '🔴' : colorClass === 'blue' ? '🔵' : colorClass === 'green' ? '🟢' : '🔮';
 
           return `
             <tr class="table-row-color-${colorClass}">
               <td class="cell-token-info">
-                <span class="token-title">${colorIcon} ${formatTokenText(sim.tokenNameUk)}</span>
+                <span class="token-title">${formatTokenText(sim.tokenNameUk)}</span>
                 <span class="token-desc">${formatTokenText(sim.tokenDescriptionUk)}</span>
               </td>
               ${renderSlotCell(sim.core)}
