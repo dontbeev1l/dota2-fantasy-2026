@@ -1,4 +1,5 @@
 import type { FantasyData, PlayerStats } from '../data.type';
+import { DotaHero, MatchMetadata, getMatchMetadata, getPlayerHero } from './dota-hero-data';
 
 // Інтерфейс для коефіцієнтів/значень фентезі-очок Dota 2
 export interface FantasyScoringRules {
@@ -103,6 +104,7 @@ export type Degree = 1 | 2 | 3 | 4 | 5 | 'I' | 'II' | 'III' | 'IV' | 'V';
 
 export type Trait =
   | 'fractal'
+  | 'benevolent'
   | 'charitable'
   | 'vampiric'
   | 'unique'
@@ -127,11 +129,14 @@ export interface FlagConfig {
 
 export type AttributeTitle =
   | 'crimson'
+  | 'cerulean'
   | 'azure'
   | 'emerald'
   | 'royal'
+  | 'golden'
   | 'gold'
   | 'elemental'
+  | 'otherworldly'
   | 'ethereal'
   | 'heroic'
   | 'кармазиновий'
@@ -144,13 +149,19 @@ export type AttributeTitle =
   | 'героїчний';
 
 export type RankTitle =
+  | 'tormented'
   | 'sufferer'
+  | 'flayed_twins_acolyte'
   | 'blessed'
   | 'patient'
+  | 'underdog'
   | 'unlucky'
+  | 'decisive'
   | 'agile'
+  | 'clutch'
   | 'decider'
   | 'lucky'
+  | 'cruel'
   | 'executioner'
   | 'страдник'
   | 'послушник'
@@ -290,11 +301,11 @@ export function degreeToBoost(degree: Degree): number {
   return 0;
 }
 
-export function normalizeTrait(t?: Trait): 'fractal' | 'charitable' | 'vampiric' | 'unique' | 'friendly' | null {
+export function normalizeTrait(t?: Trait): 'fractal' | 'benevolent' | 'vampiric' | 'unique' | 'friendly' | null {
   if (!t) return null;
   const s = String(t).toLowerCase().trim();
   if (s === 'fractal' || s === 'фрактальна') return 'fractal';
-  if (s === 'charitable' || s === 'благодійна') return 'charitable';
+  if (s === 'benevolent' || s === 'charitable' || s === 'благодійна') return 'benevolent';
   if (s === 'vampiric' || s === 'вампірська') return 'vampiric';
   if (s === 'unique' || s === 'унікальна') return 'unique';
   if (s === 'friendly' || s === 'дружня') return 'friendly';
@@ -377,7 +388,7 @@ export function computeEmblemMultipliers(emblems: EmblemConfig[]): number[] {
     const neighbors = [idx - 1, idx + 1].filter((i) => i >= 0 && i < normalized.length);
     for (const nIdx of neighbors) {
       const nTrait = normalized[nIdx].trait;
-      if (nTrait === 'charitable') neighborBoost += 0.20;
+      if (nTrait === 'benevolent') neighborBoost += 0.20;
       if (nTrait === 'vampiric') neighborBoost -= 0.10;
     }
 
@@ -385,37 +396,52 @@ export function computeEmblemMultipliers(emblems: EmblemConfig[]): number[] {
   });
 }
 
+export interface CoachGameContext {
+  hero: DotaHero;
+  matchMeta: MatchMetadata;
+  isLoss: boolean;
+  isDecider: boolean;
+}
+
 export function getCoachBoost(
   coach: CoachConfig | undefined,
-  gameInfo: { isLoss: boolean; isDecider: boolean }
+  gameInfo: CoachGameContext
 ): number {
   if (!coach) return 0;
   let boost = 0;
 
+  const { hero, isLoss, isDecider } = gameInfo;
+
   if (coach.attribute) {
     const attr = String(coach.attribute).toLowerCase();
-    if (attr === 'crimson' || attr === 'кармазиновий') boost += 0.06;
-    else if (attr === 'azure' || attr === 'лазурний') boost += 0.11;
-    else if (attr === 'emerald' || attr === 'смарагдовий') boost += 0.06;
-    else if (attr === 'royal' || attr === 'королівський') boost += 0.10;
-    else if (attr === 'gold' || attr === 'золотий') boost += 0.08;
-    else if (attr === 'elemental' || attr === 'елементальний') boost += 0.08;
-    else if (attr === 'ethereal' || attr === 'потойбічний') boost += 0.07;
-    else if (attr === 'heroic' || attr === 'героїчний') boost += 0.09;
+    if (attr === 'crimson' || attr === 'кармазиновий') {
+      if (hero.color === 'red') boost += 0.06;
+    } else if (attr === 'cerulean' || attr === 'azure' || attr === 'лазурний') {
+      if (hero.color === 'blue') boost += 0.11;
+    } else if (attr === 'emerald' || attr === 'смарагдовий') {
+      if (hero.color === 'green') boost += 0.06;
+    } else if (attr === 'royal' || attr === 'королівський') {
+      if (hero.color === 'purple') boost += 0.10;
+    } else if (attr === 'golden' || attr === 'gold' || attr === 'золотий') {
+      if (hero.color === 'yellow_brown') boost += 0.08;
+    } else if (attr === 'elemental' || attr === 'елементальний') {
+      if (hero.isElemental) boost += 0.08;
+    } else if (attr === 'otherworldly' || attr === 'ethereal' || attr === 'потойбічний') {
+      if (hero.isOtherworldly) boost += 0.07;
+    } else if (attr === 'heroic' || attr === 'героїчний') {
+      if (hero.isHeroic) boost += 0.09;
+    }
   }
 
   if (coach.rank) {
     const r = String(coach.rank).toLowerCase();
-    if (r === 'sufferer' || r === 'страдник') boost += 0.23;
-    else if (r === 'blessed' || r === 'послушник') boost += 0.09;
-    else if (r === 'patient' || r === 'терпеливець') boost += 0.23;
-    else if (r === 'unlucky' || r === 'нещасливець') {
-      if (gameInfo.isLoss) boost += 0.06;
-    } else if (r === 'agile' || r === 'спритник') boost += 0.24;
-    else if (r === 'decider' || r === 'вирішайло') {
-      if (gameInfo.isDecider) boost += 0.16;
-    } else if (r === 'lucky' || r === 'щасливчик') boost += 0.21;
-    else if (r === 'executioner' || r === 'кат') boost += 0.13;
+    if (r === 'underdog' || r === 'unlucky' || r === 'нещасливець') {
+      if (isLoss) boost += 0.06;
+    } else if (r === 'clutch' || r === 'decider' || r === 'вирішайло') {
+      if (isDecider) boost += 0.16;
+    }
+    // Звання, які вимагають неіснуючих у датасеті телеметричних подій (смерть від Мучителя, FB до сурми, FB після 10хв, фонтан, тривалість),
+    // не враховуються (дають +0%), щоб не спотворювати реальний підрахунок.
   }
 
   return boost;
@@ -498,14 +524,16 @@ export function calculateFantasyScore(
       const match = matches[gIdx];
       const isLoss = match.playerMaps.some((pm) => !pm.map.win);
       const isDecider = totalGamesInSeries >= 3 && gIdx === totalGamesInSeries - 1;
-
-      const coachBoost = getCoachBoost(config.coach, { isLoss, isDecider });
-      const coachMult = 1 + coachBoost;
+      const matchMeta = getMatchMetadata(match.matchId);
 
       const playerScores: Array<{ playerName: string; score: number }> = [];
       let totalPlayerScore = 0;
 
       for (const pm of match.playerMaps) {
+        const hero = getPlayerHero(match.matchId, pm.player.id, role);
+        const coachBoost = getCoachBoost(config.coach, { hero, matchMeta, isLoss, isDecider });
+        const coachMult = 1 + coachBoost;
+
         let pScore = 0;
         for (let i = 0; i < config.flag.emblems.length; i++) {
           const statKey = normalizeCharacteristic(config.flag.emblems[i].characteristic);

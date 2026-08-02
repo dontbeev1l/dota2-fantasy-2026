@@ -15,6 +15,14 @@ import {
   WorkerResponse,
   REPLACEMENT_TOKENS,
 } from './calculator.worker';
+import {
+  Language,
+  getStoredLanguage,
+  setStoredLanguage,
+  TRANSLATIONS,
+  formatTokenText,
+  getShortTokenName,
+} from './i18n';
 
 export function getTokenColorClass(tokenId: string): 'red' | 'blue' | 'green' | 'neutral' {
   if (tokenId.includes('_red_')) return 'red';
@@ -40,60 +48,8 @@ export function sortTokensByColor<T extends { id?: string; tokenId?: string }>(t
   });
 }
 
-export function formatTokenText(text: string): string {
-  const targetWords = [
-    'першої',
-    'перша',
-    'першу',
-    'останньої',
-    'остання',
-    'останню',
-    'випадкової',
-    'випадкова',
-    'випадкову',
-    'випадкові',
-    'випадкових',
-    'одну',
-    'один',
-    'дві',
-    'двох',
-    'найнижчим',
-    'найнижчою',
-    'найнижчим ступенем',
-    'найнижчу',
-    'найменшим',
-    'усіх',
-    'усі',
-    'всіх',
-    'всі',
-  ];
-
-  const pattern = new RegExp(`(?<![а-яіїєґА-ЯІЇЄҐa-zA-Z0-9_])(${targetWords.join('|')})(?![а-яіїєґА-ЯІЇЄҐa-zA-Z0-9_])`, 'gui');
-  return text.replace(pattern, '<b class="target-emblem-kw">$1</b>');
-}
-
-export function getShortTokenName(nameUk: string): string {
-  return nameUk
-    .replace(/^Замінити якість /i, '')
-    .replace(/^Змінити характеристику /i, '')
-    .replace(/^Замінити характеристику /i, '')
-    .replace(/^Змінити характеристики /i, '')
-    .replace(/^Замінити всі характеристики на стягу/i, 'Усі характеристики')
-    .replace(/^Змінити рису /i, '')
-    .replace(/^Змінити риси /i, '')
-    .replace(/^Замінити рису /i, '')
-    .replace(/^Замінити риси /i, '')
-    .replace(/^Покращити одну випадкову якість/i, 'Одна випадкова емблема')
-    .replace(/^Покращити емблему з найнижчим ступенем/i, 'Найнижчий ступінь')
-    .replace(/^Покращити дві якості і погіршити одну/i, '2 покращення + 1 погіршення')
-    .replace(/^Замінити рису та якість випадкової емблеми/i, 'Риса та якість випадкової')
-    .replace(/^Повна заміна випадкової емблеми/i, 'Повна заміна випадкової')
-    .replace(/^Повна заміна всіх емблем на стягу/i, 'Повна заміна всіх');
-}
-
 export interface TokenCategory {
-  id: string;
-  titleUk: string;
+  id: 'degree' | 'characteristic' | 'trait';
   icon: string;
   tokenIds: string[];
 }
@@ -101,7 +57,6 @@ export interface TokenCategory {
 export const TOKEN_CATEGORIES: TokenCategory[] = [
   {
     id: 'degree',
-    titleUk: 'Замінити якість',
     icon: '',
     tokenIds: [
       'reroll_first_red_degree',
@@ -125,7 +80,6 @@ export const TOKEN_CATEGORIES: TokenCategory[] = [
   },
   {
     id: 'characteristic',
-    titleUk: 'Замінити характеристику',
     icon: '',
     tokenIds: [
       'reroll_first_red_char',
@@ -146,7 +100,6 @@ export const TOKEN_CATEGORIES: TokenCategory[] = [
   },
   {
     id: 'trait',
-    titleUk: 'Замінити рису',
     icon: '',
     tokenIds: [
       'reroll_first_red_trait',
@@ -170,6 +123,7 @@ export const TOKEN_CATEGORIES: TokenCategory[] = [
 const STORAGE_KEY = 'dota_fantasy_2026_state_v2';
 
 export class FantasyApp extends HTMLElement {
+  private currentLang: Language = getStoredLanguage();
   private selectedCoachIdx: number = 0; // 0 for #1, 1 for #2, 2 for #3
   private selectedTeamIdx: [number, number, number] = [0, 0, 0]; // per slot: 0 for #1, 1 for #2, 2 for #3
   private enabledTokenIds: Set<string> = new Set([
@@ -179,14 +133,10 @@ export class FantasyApp extends HTMLElement {
   ]);
   private worker: Worker | null = null;
 
-  // Фіксовані кольори емблем:
-  // Основа: Червона, Зелена, Червона
-  // Мід: Червона, Синя, Зелена
-  // Підтримка: Синя, Зелена, Синя
   private slotStates: SlotState[] = [
     {
       id: 'core',
-      position: 'основа',
+      position: 'core',
       titleUk: 'Основа',
       icon: '',
       emblems: [
@@ -197,7 +147,7 @@ export class FantasyApp extends HTMLElement {
     },
     {
       id: 'mid',
-      position: 'цент',
+      position: 'mid',
       titleUk: 'Центр',
       icon: '',
       emblems: [
@@ -208,7 +158,7 @@ export class FantasyApp extends HTMLElement {
     },
     {
       id: 'support',
-      position: 'підтримка',
+      position: 'support',
       titleUk: 'Підтримка',
       icon: '',
       emblems: [
@@ -220,6 +170,7 @@ export class FantasyApp extends HTMLElement {
   ];
 
   connectedCallback() {
+    this.updateDocumentMetadata();
     this.loadStateFromStorage();
     this.initWebWorker();
     this.render();
@@ -234,6 +185,16 @@ export class FantasyApp extends HTMLElement {
     }
   }
 
+  private updateDocumentMetadata() {
+    document.documentElement.lang = this.currentLang;
+    const t = TRANSLATIONS[this.currentLang];
+    document.title = `${t.appTitle} — TI 2026 Analytics`;
+    const metaDesc = document.querySelector('meta[name="description"]');
+    if (metaDesc) {
+      metaDesc.setAttribute('content', t.metaDescription);
+    }
+  }
+
   private initWebWorker() {
     try {
       this.worker = new Worker(new URL('./calculator.worker.ts', import.meta.url), {
@@ -243,7 +204,7 @@ export class FantasyApp extends HTMLElement {
         this.handleWorkerResults(e.data);
       };
     } catch (e) {
-      console.error('Не вдалося створити Web Worker:', e);
+      console.error('Не вдалося створити Web Worker / Failed to initialize Web Worker:', e);
     }
   }
 
@@ -296,25 +257,36 @@ export class FantasyApp extends HTMLElement {
   }
 
   private render() {
+    const t = TRANSLATIONS[this.currentLang];
+
     this.innerHTML = `
       <div class="app-container">
         <!-- COMPACT UNIFIED HEADER -->
         <header class="app-header">
           <div class="header-compact-bar">
             <div class="header-left-group">
-              <h1 class="app-title">Dota 2 Fantasy 2026</h1>
+              <div class="title-and-lang-group">
+                <h1 class="app-title">${t.appTitle}</h1>
+                <!-- LANGUAGE SWITCHER UNDER TITLE -->
+                <div class="lang-switcher">
+                  <button type="button" class="lang-btn ${this.currentLang === 'uk' ? 'active' : ''}" data-lang="uk">🇺🇦 UA</button>
+                  <button type="button" class="lang-btn ${this.currentLang === 'en' ? 'active' : ''}" data-lang="en">🇬🇧 EN</button>
+                </div>
+              </div>
               <div class="header-total-score-badge">
-                <span class="total-score-label">Разом:</span>
+                <span class="total-score-label">${t.totalLabel}</span>
                 <span class="total-score-val" id="total-roster-score">0.00</span>
               </div>
             </div>
 
-            <!-- GLOBAL COACH TOP-3 CARD -->
-            <div class="global-coach-optimization-card" id="coach-optimization-box">
-              <div class="coach-opt-header">
-                <span class="opt-title">Топ-3 Титули Тренера:</span>
+            <div class="header-right-group">
+              <!-- GLOBAL COACH TOP-3 CARD -->
+              <div class="global-coach-optimization-card" id="coach-optimization-box">
+                <div class="coach-opt-header">
+                  <span class="opt-title">${t.topCoachTitles}</span>
+                </div>
+                <div class="coach-options-list"></div>
               </div>
-              <div class="coach-options-list"></div>
             </div>
           </div>
         </header>
@@ -328,31 +300,32 @@ export class FantasyApp extends HTMLElement {
         <section class="tokens-selector-card">
           <div class="selector-card-header">
             <div class="selector-title-group">
-              <h2 class="section-title">Наявні Жетони Замін</h2>
+              <h2 class="section-title">${t.availableTokens}</h2>
             </div>
 
             <div class="toggle-actions">
-              <button type="button" class="action-btn" id="btn-enable-all">Увімкнути всі</button>
-              <button type="button" class="action-btn" id="btn-disable-all">Вимкнути всі</button>
+              <button type="button" class="action-btn" id="btn-enable-all">${t.enableAll}</button>
+              <button type="button" class="action-btn" id="btn-disable-all">${t.disableAll}</button>
             </div>
           </div>
 
           <div class="token-categories-grid">
             ${TOKEN_CATEGORIES.map((cat) => {
-              const rawCatTokens = REPLACEMENT_TOKENS.filter((t) => cat.tokenIds.includes(t.id));
+              const rawCatTokens = REPLACEMENT_TOKENS.filter((tk) => cat.tokenIds.includes(tk.id));
               const catTokens = sortTokensByColor(rawCatTokens);
-              const activeCount = catTokens.filter((t) => this.enabledTokenIds.has(t.id)).length;
+              const activeCount = catTokens.filter((tk) => this.enabledTokenIds.has(tk.id)).length;
+              const catTitle = t.tokenCategories[cat.id];
 
               return `
                 <div class="category-card cat-${cat.id}">
                   <div class="category-card-header">
                     <div class="category-title-wrapper">
-                      <h3 class="cat-title">${cat.titleUk}</h3>
+                      <h3 class="cat-title">${catTitle}</h3>
                       <span class="cat-badge" id="cat-badge-${cat.id}">${activeCount}/${catTokens.length}</span>
                     </div>
                     <div class="cat-quick-actions">
-                      <button type="button" class="cat-action-btn btn-cat-enable" data-cat-id="${cat.id}">Всі</button>
-                      <button type="button" class="cat-action-btn btn-cat-disable" data-cat-id="${cat.id}">Скинути</button>
+                      <button type="button" class="cat-action-btn btn-cat-enable" data-cat-id="${cat.id}">${t.catAll}</button>
+                      <button type="button" class="cat-action-btn btn-cat-disable" data-cat-id="${cat.id}">${t.catReset}</button>
                     </div>
                   </div>
 
@@ -361,10 +334,14 @@ export class FantasyApp extends HTMLElement {
                       .map((tk) => {
                         const isEnabled = this.enabledTokenIds.has(tk.id);
                         const colorClass = getTokenColorClass(tk.id);
+                        const name = this.currentLang === 'en' ? tk.nameEn : tk.nameUk;
+                        const desc = this.currentLang === 'en' ? tk.descriptionEn : tk.descriptionUk;
+                        const shortName = getShortTokenName(name, this.currentLang);
+
                         return `
-                          <button type="button" class="token-chip chip-color-${colorClass} ${isEnabled ? 'active' : ''}" data-token-id="${tk.id}" title="${tk.descriptionUk}">
+                          <button type="button" class="token-chip chip-color-${colorClass} ${isEnabled ? 'active' : ''}" data-token-id="${tk.id}" title="${desc}">
                             <span class="chip-status"></span>
-                            <span class="chip-name">${formatTokenText(getShortTokenName(tk.nameUk))}</span>
+                            <span class="chip-name">${formatTokenText(shortName, this.currentLang)}</span>
                           </button>
                         `;
                       })
@@ -374,20 +351,21 @@ export class FantasyApp extends HTMLElement {
               `;
             }).join('')}
           </div>
+
           <!-- COMPARISON TABLE CARD (MATCHING TOP TEAMS CARD STYLE) -->
           <div class="comparison-table-card">
             <div class="teams-opt-header">
-              <span>Аналіз та Порівняльна Таблиця Замін за Слотами</span>
+              <span>${t.comparisonTableTitle}</span>
             </div>
             <div class="table-responsive-wrapper">
               <table class="tokens-comparison-table">
                 <thead>
                   <tr>
-                    <th class="col-token">Жетон / Заміна</th>
-                    <th class="col-slot">Основа</th>
-                    <th class="col-slot">Центр</th>
-                    <th class="col-slot">Підтримка</th>
-                    <th class="col-recommend">Найкраще використати</th>
+                    <th class="col-token">${t.colToken}</th>
+                    <th class="col-slot">${t.colCore}</th>
+                    <th class="col-slot">${t.colMid}</th>
+                    <th class="col-slot">${t.colSupport}</th>
+                    <th class="col-recommend">${t.colBestSlot}</th>
                   </tr>
                 </thead>
                 <tbody id="tokens-table-body">
@@ -402,12 +380,15 @@ export class FantasyApp extends HTMLElement {
   }
 
   private renderSlotCard(slot: SlotState, sIdx: number): string {
+    const t = TRANSLATIONS[this.currentLang];
+    const slotTitle = t.slots[slot.id as 'core' | 'mid' | 'support'];
+
     return `
       <article class="slot-card" data-slot-index="${sIdx}">
         <!-- SLOT HEADER -->
         <div class="slot-header">
           <div class="slot-title-group">
-            <h2 class="slot-title">${slot.titleUk}</h2>
+            <h2 class="slot-title">${slotTitle}</h2>
           </div>
           <span class="slot-score-badge" id="score-badge-${slot.id}">0.00</span>
         </div>
@@ -420,7 +401,7 @@ export class FantasyApp extends HTMLElement {
         <!-- TOP 3 TEAMS OPTIMIZATION LIST -->
         <div class="top-teams-card" id="top-teams-box-${slot.id}">
           <div class="teams-opt-header">
-            <span>Топ-3 Команди для слота:</span>
+            <span>${t.topTeamsForSlot}</span>
           </div>
           <div class="teams-options-list"></div>
         </div>
@@ -438,11 +419,14 @@ export class FantasyApp extends HTMLElement {
           <select class="custom-select char-select compact-select" data-slot="${sIdx}" data-emblem="${eIdx}">
             ${colorCharList
               .map(
-                (c) => `
-              <option value="${c.key}" ${c.key === emb.characteristic ? 'selected' : ''}>
-                ${c.icon} ${c.nameUk}
-              </option>
-            `
+                (c) => {
+                  const charName = this.currentLang === 'en' ? c.nameEn : c.nameUk;
+                  return `
+                    <option value="${c.key}" ${c.key === emb.characteristic ? 'selected' : ''}>
+                      ${c.icon} ${charName}
+                    </option>
+                  `;
+                }
               )
               .join('')}
           </select>
@@ -464,11 +448,14 @@ export class FantasyApp extends HTMLElement {
 
           <select class="custom-select trait-select compact-select" data-slot="${sIdx}" data-emblem="${eIdx}">
             ${TRAITS.map(
-              (tr) => `
-              <option value="${tr.key || 'none'}" ${tr.key === emb.trait ? 'selected' : ''}>
-                ${tr.icon} ${tr.nameUk}
-              </option>
-            `
+              (tr) => {
+                const traitName = this.currentLang === 'en' ? tr.nameEn : tr.nameUk;
+                return `
+                  <option value="${tr.key || 'none'}" ${tr.key === emb.trait ? 'selected' : ''}>
+                    ${tr.icon} ${traitName}
+                  </option>
+                `;
+              }
             ).join('')}
           </select>
         </div>
@@ -476,7 +463,12 @@ export class FantasyApp extends HTMLElement {
     `;
   }
 
+  private isListenersAttached = false;
+
   private attachEventListeners() {
+    if (this.isListenersAttached) return;
+    this.isListenersAttached = true;
+
     this.addEventListener('change', (e: Event) => {
       const target = e.target as HTMLElement;
 
@@ -496,6 +488,19 @@ export class FantasyApp extends HTMLElement {
 
     this.addEventListener('click', (e: Event) => {
       const target = e.target as HTMLElement;
+
+      const langBtn = target.closest('.lang-btn') as HTMLElement;
+      if (langBtn) {
+        const newLang = langBtn.getAttribute('data-lang') as Language;
+        if (newLang && newLang !== this.currentLang) {
+          this.currentLang = newLang;
+          setStoredLanguage(newLang);
+          this.updateDocumentMetadata();
+          this.render();
+          this.recalculateAll();
+        }
+        return;
+      }
 
       const coachItem = target.closest('.coach-option-btn') as HTMLElement;
       if (coachItem) {
@@ -607,8 +612,8 @@ export class FantasyApp extends HTMLElement {
     TOKEN_CATEGORIES.forEach((cat) => {
       const catBadge = this.querySelector(`#cat-badge-${cat.id}`);
       if (catBadge) {
-        const catTokens = REPLACEMENT_TOKENS.filter((t) => cat.tokenIds.includes(t.id));
-        const activeCount = catTokens.filter((t) => this.enabledTokenIds.has(t.id)).length;
+        const catTokens = REPLACEMENT_TOKENS.filter((tk) => cat.tokenIds.includes(tk.id));
+        const activeCount = catTokens.filter((tk) => this.enabledTokenIds.has(tk.id)).length;
         catBadge.textContent = `${activeCount}/${catTokens.length}`;
       }
     });
@@ -630,27 +635,32 @@ export class FantasyApp extends HTMLElement {
   // Receive Web Worker computation results off main thread
   private handleWorkerResults(data: WorkerResponse) {
     const { topCoachCombos, topTeamsPerSlot, grandTotal, multiSlotSimulations } = data;
+    const t = TRANSLATIONS[this.currentLang];
 
     // Smoothly update Coach Top-3 UI without layout shift
     const coachBox = this.querySelector('#coach-optimization-box');
     if (coachBox) {
       coachBox.innerHTML = `
         <div class="coach-opt-header">
-          <span class="opt-title">Топ-3 Титули Тренера:</span>
+          <span class="opt-title">${t.topCoachTitles}</span>
         </div>
         <div class="coach-options-list">
           ${topCoachCombos
             .map(
-              (c, idx) => `
-            <button type="button" class="coach-option-btn ${idx === this.selectedCoachIdx ? 'active' : ''}" data-coach-idx="${idx}">
-              <span class="coach-rank-box">#${idx + 1}</span>
-              <span class="coach-info-group">
-                <span class="coach-name">${c.attrNameUk}</span>
-                <span class="coach-tag-code">[${c.rankNameUk}]</span>
-              </span>
-              <span class="coach-score">+${c.totalScore.toLocaleString('uk-UA', { maximumFractionDigits: 1 })}</span>
-            </button>
-          `
+              (c, idx) => {
+                const attrName = this.currentLang === 'en' ? c.attrNameEn : c.attrNameUk;
+                const rankName = this.currentLang === 'en' ? c.rankNameEn : c.rankNameUk;
+                return `
+                  <button type="button" class="coach-option-btn ${idx === this.selectedCoachIdx ? 'active' : ''}" data-coach-idx="${idx}">
+                    <span class="coach-rank-box">#${idx + 1}</span>
+                    <span class="coach-info-group">
+                      <span class="coach-name">${attrName}</span>
+                      <span class="coach-tag-code">[${rankName}]</span>
+                    </span>
+                    <span class="coach-score">+${c.totalScore.toLocaleString(this.currentLang === 'en' ? 'en-US' : 'uk-UA', { maximumFractionDigits: 1 })}</span>
+                  </button>
+                `;
+              }
             )
             .join('')}
         </div>
@@ -673,20 +683,20 @@ export class FantasyApp extends HTMLElement {
       if (topTeamsBox) {
         topTeamsBox.innerHTML = `
           <div class="teams-opt-header">
-            <span>Топ-3 Команди для слота:</span>
+            <span>${t.topTeamsForSlot}</span>
           </div>
           <div class="teams-options-list">
             ${topTeams
               .map(
-                (t, idx) => `
+                (team, idx) => `
               <button type="button" class="team-option-btn ${idx === this.selectedTeamIdx[sIdx] ? 'active' : ''}"
                 data-slot="${sIdx}" data-team-idx="${idx}">
                 <span class="team-rank-box">#${idx + 1}</span>
                 <span class="team-info-group">
-                  <span class="team-name">${t.teamName}</span>
-                  <span class="team-tag-code">[${t.tag}]</span>
+                  <span class="team-name">${team.teamName}</span>
+                  <span class="team-tag-code">[${team.tag}]</span>
                 </span>
-                <span class="team-score">${t.score.toLocaleString('uk-UA', { maximumFractionDigits: 1 })} оч.</span>
+                <span class="team-score">${team.score.toLocaleString(this.currentLang === 'en' ? 'en-US' : 'uk-UA', { maximumFractionDigits: 1 })} ${t.pts}</span>
               </button>
             `
               )
@@ -698,13 +708,13 @@ export class FantasyApp extends HTMLElement {
       // Update Slot Score Badge
       const scoreBadge = this.querySelector(`#score-badge-${slot.id}`);
       if (scoreBadge) {
-        scoreBadge.textContent = `${activeTeam.score.toLocaleString('uk-UA', { maximumFractionDigits: 1 })}`;
+        scoreBadge.textContent = `${activeTeam.score.toLocaleString(this.currentLang === 'en' ? 'en-US' : 'uk-UA', { maximumFractionDigits: 1 })}`;
       }
 
       // Update Mini Score
       const miniScore = this.querySelector(`#mini-score-${slot.id}`);
       if (miniScore) {
-        miniScore.textContent = activeTeam.score.toLocaleString('uk-UA', { maximumFractionDigits: 1 });
+        miniScore.textContent = activeTeam.score.toLocaleString(this.currentLang === 'en' ? 'en-US' : 'uk-UA', { maximumFractionDigits: 1 });
       }
 
       // Update Emblem Multipliers
@@ -720,7 +730,7 @@ export class FantasyApp extends HTMLElement {
     // Update Grand Total Roster Score
     const totalEl = this.querySelector('#total-roster-score');
     if (totalEl) {
-      totalEl.textContent = grandTotal.toLocaleString('uk-UA', { maximumFractionDigits: 1 });
+      totalEl.textContent = grandTotal.toLocaleString(this.currentLang === 'en' ? 'en-US' : 'uk-UA', { maximumFractionDigits: 1 });
     }
 
     // Render Multi-Slot Replacement Comparison Table
@@ -730,7 +740,7 @@ export class FantasyApp extends HTMLElement {
         tableBody.innerHTML = `
           <tr>
             <td colspan="5" class="empty-table-msg">
-              Не вибрано жодного жетону. Увімкніть жетони вище, щоб побачити аналіз!
+              ${t.noTokensSelected}
             </td>
           </tr>
         `;
@@ -744,42 +754,44 @@ export class FantasyApp extends HTMLElement {
           const renderSlotCell = (slotData: typeof sim.core) => {
             const { expectedValue, maxGain, maxLoss, winRate, isRecommended } = slotData;
 
-            let badgeText = 'РИЗИК';
+            let badgeText = t.badgeRisk;
             let badgeClass = 'bg-bad';
             let cellClass = '';
 
             if (maxLoss === 0 && maxGain === 0) {
-              badgeText = 'БЕЗ ЗМІН';
+              badgeText = t.badgeNoChange;
               badgeClass = 'bg-neutral';
               cellClass = 'cell-neutral';
             } else if (maxLoss === 0 && expectedValue > 0) {
-              badgeText = 'ВАРТО';
+              badgeText = t.badgeWorthIt;
               badgeClass = 'bg-good';
               cellClass = 'cell-recommended';
             } else if (isRecommended) {
-              badgeText = 'ВАРТО';
+              badgeText = t.badgeWorthIt;
               badgeClass = 'bg-good';
               cellClass = 'cell-recommended';
             } else if (maxGain <= 0 && maxLoss < 0) {
-              badgeText = 'ЗБИТКОВО';
+              badgeText = t.badgeUnprofitable;
               badgeClass = 'bg-bad';
               cellClass = 'cell-bad';
             } else {
-              badgeText = 'РИЗИК';
+              badgeText = t.badgeRisk;
               badgeClass = 'bg-bad';
               cellClass = 'cell-bad';
             }
 
+            const numberLocale = this.currentLang === 'en' ? 'en-US' : 'uk-UA';
+
             const evFormatted = expectedValue >= 0 
-              ? `+${expectedValue.toLocaleString('uk-UA', { maximumFractionDigits: 0 })}` 
-              : expectedValue.toLocaleString('uk-UA', { maximumFractionDigits: 0 });
+              ? `+${expectedValue.toLocaleString(numberLocale, { maximumFractionDigits: 0 })}` 
+              : expectedValue.toLocaleString(numberLocale, { maximumFractionDigits: 0 });
 
             const maxGainFormatted = maxGain > 0 
-              ? `+${maxGain.toLocaleString('uk-UA', { maximumFractionDigits: 0 })}` 
+              ? `+${maxGain.toLocaleString(numberLocale, { maximumFractionDigits: 0 })}` 
               : '0';
 
             const maxLossFormatted = maxLoss < 0 
-              ? maxLoss.toLocaleString('uk-UA', { maximumFractionDigits: 0 }) 
+              ? maxLoss.toLocaleString(numberLocale, { maximumFractionDigits: 0 }) 
               : '0';
 
             const riskTxtClass = maxLoss < 0 ? 'txt-bad' : 'txt-neutral';
@@ -792,36 +804,38 @@ export class FantasyApp extends HTMLElement {
                     ${badgeText}
                   </span>
                   <span class="cell-ev ${evTxtClass}">
-                    EV: ${evFormatted} оч.
+                    EV: ${evFormatted} ${t.pts}
                   </span>
                 </div>
                 <div class="cell-sub">
-                  <span>Шанс: <b>${winRate.toFixed(0)}%</b></span>
-                  <span>Виграш: <b class="txt-good">${maxGainFormatted}</b> | Ризик: <b class="${riskTxtClass}">${maxLossFormatted}</b></span>
+                  <span>${t.chance}: <b>${winRate.toFixed(0)}%</b></span>
+                  <span>${t.win}: <b class="txt-good">${maxGainFormatted}</b> | ${t.risk}: <b class="${riskTxtClass}">${maxLossFormatted}</b></span>
                 </div>
               </td>
             `;
           };
 
           let bestSlotHtml = '';
-          const bestEvFmt = sim.bestSlotEv.toLocaleString('uk-UA', { maximumFractionDigits: 0 });
+          const bestEvFmt = sim.bestSlotEv.toLocaleString(this.currentLang === 'en' ? 'en-US' : 'uk-UA', { maximumFractionDigits: 0 });
           if (sim.bestSlot === 'core') {
-            bestSlotHtml = `<span class="best-badge badge-core">Основа (+${bestEvFmt} оч.)</span>`;
+            bestSlotHtml = `<span class="best-badge badge-core">${t.bestBadgeCore(bestEvFmt)}</span>`;
           } else if (sim.bestSlot === 'mid') {
-            bestSlotHtml = `<span class="best-badge badge-mid">Мід (+${bestEvFmt} оч.)</span>`;
+            bestSlotHtml = `<span class="best-badge badge-mid">${t.bestBadgeMid(bestEvFmt)}</span>`;
           } else if (sim.bestSlot === 'support') {
-            bestSlotHtml = `<span class="best-badge badge-support">Підтримка (+${bestEvFmt} оч.)</span>`;
+            bestSlotHtml = `<span class="best-badge badge-support">${t.bestBadgeSupport(bestEvFmt)}</span>`;
           } else {
-            bestSlotHtml = `<span class="best-badge badge-none">Не вигідно на жодному</span>`;
+            bestSlotHtml = `<span class="best-badge badge-none">${t.bestBadgeNone}</span>`;
           }
 
           const colorClass = getTokenColorClass(sim.tokenId);
+          const tokenName = this.currentLang === 'en' ? sim.tokenNameEn : sim.tokenNameUk;
+          const tokenDesc = this.currentLang === 'en' ? sim.tokenDescriptionEn : sim.tokenDescriptionUk;
 
           return `
             <tr class="table-row-color-${colorClass}">
               <td class="cell-token-info">
-                <span class="token-title">${formatTokenText(sim.tokenNameUk)}</span>
-                <span class="token-desc">${formatTokenText(sim.tokenDescriptionUk)}</span>
+                <span class="token-title">${formatTokenText(tokenName, this.currentLang)}</span>
+                <span class="token-desc">${formatTokenText(tokenDesc, this.currentLang)}</span>
               </td>
               ${renderSlotCell(sim.core)}
               ${renderSlotCell(sim.mid)}
