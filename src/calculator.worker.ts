@@ -148,32 +148,11 @@ export const REPLACEMENT_TOKENS: TokenDefinition[] = [
     descriptionEn: 'All green emblems receive new tiers (I-V)',
   },
   {
-    id: 'reroll_random_degree',
-    nameUk: 'Замінити якість випадкової емблеми',
-    nameEn: 'Reroll tier of random emblem',
-    descriptionUk: 'Випадкова емблема змінює ступінь на новий (I-V)',
-    descriptionEn: 'Random emblem receives a new tier (I-V)',
-  },
-  {
-    id: 'reroll_all_degrees',
-    nameUk: 'Замінити якість усіх емблем',
-    nameEn: 'Reroll tier of all emblems',
-    descriptionUk: 'Усі 3 емблеми на слоту отримують нові ступені',
-    descriptionEn: 'All 3 emblems on slot receive new tiers',
-  },
-  {
     id: 'upgrade_1_random_degree',
     nameUk: 'Покращити одну випадкову якість',
     nameEn: 'Upgrade tier of one random emblem',
     descriptionUk: 'Випадкова емблема підвищує свій ступінь на +1 рівень',
     descriptionEn: 'Random emblem increases its tier by +1',
-  },
-  {
-    id: 'upgrade_lowest_degree',
-    nameUk: 'Покращити емблему з найнижчим ступенем',
-    nameEn: 'Upgrade emblem with lowest tier',
-    descriptionUk: 'Емблема з найменшим ступенем на стягу підвищується на +1 рівень',
-    descriptionEn: 'Emblem with lowest tier on flag increases by +1 level',
   },
   {
     id: 'upgrade_2_downgrade_1_degree',
@@ -268,20 +247,6 @@ export const REPLACEMENT_TOKENS: TokenDefinition[] = [
     descriptionUk: 'Усі зелені емблеми отримують нові характеристики свого кольору',
     descriptionEn: 'All green emblems receive new stats of their color',
   },
-  {
-    id: 'reroll_random_emblem_char',
-    nameUk: 'Замінити характеристику випадкової емблеми',
-    nameEn: 'Reroll stat of random emblem',
-    descriptionUk: 'Випадкова емблема отримує нову характеристику свого кольору',
-    descriptionEn: 'Random emblem receives a new stat of its color',
-  },
-  {
-    id: 'reroll_all_chars',
-    nameUk: 'Замінити всі характеристики на стягу',
-    nameEn: 'Reroll stats of all emblems',
-    descriptionUk: 'Усі 3 емблеми отримують нові характеристики свого кольору',
-    descriptionEn: 'All 3 emblems receive new stats of their color',
-  },
 
   // --- ✨ РИСИ ЕМБЛЕМ (TRAIT) ---
   {
@@ -367,20 +332,6 @@ export const REPLACEMENT_TOKENS: TokenDefinition[] = [
     nameEn: 'Reroll traits of all green emblems',
     descriptionUk: 'Усі зелені емблеми отримують нові риси',
     descriptionEn: 'All green emblems receive new traits',
-  },
-  {
-    id: 'reroll_random_emblem_trait',
-    nameUk: 'Замінити рису випадкової емблеми',
-    nameEn: 'Reroll trait of random emblem',
-    descriptionUk: 'Випадкова емблема отримує нову рису',
-    descriptionEn: 'Random emblem receives a new trait',
-  },
-  {
-    id: 'reroll_all_traits',
-    nameUk: 'Замінити риси всіх емблем',
-    nameEn: 'Reroll traits of all emblems',
-    descriptionUk: 'Усі 3 емблеми отримують нові риси',
-    descriptionEn: 'All 3 emblems receive new traits',
   },
 
   // --- 🔮 КОМБІНОВАНІ & ПОВНІ (COMBINED & FULL) ---
@@ -625,53 +576,6 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
 
     const outcomes: WeightedOutcome[] = [];
 
-    const simulateColorDegreeReroll = (color: 'red' | 'green' | 'blue') => {
-      const colorIndices = targetSlot.emblems
-        .map((e, idx) => (e.color === color ? idx : -1))
-        .filter((idx) => idx !== -1);
-
-      if (colorIndices.length === 1) {
-        for (const d1 of DEGREE_ORDER) {
-          const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
-          cloned[colorIndices[0]].degree = d1;
-          const newScore = getSlotScoreWithEmblems(cloned);
-          outcomes.push({
-            delta: newScore - currentSlotScore,
-            weight: DEGREE_WEIGHTS[d1],
-          });
-        }
-      } else if (colorIndices.length === 2) {
-        for (const d1 of DEGREE_ORDER) {
-          for (const d2 of DEGREE_ORDER) {
-            const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
-            cloned[colorIndices[0]].degree = d1;
-            cloned[colorIndices[1]].degree = d2;
-            const newScore = getSlotScoreWithEmblems(cloned);
-            outcomes.push({
-              delta: newScore - currentSlotScore,
-              weight: DEGREE_WEIGHTS[d1] * DEGREE_WEIGHTS[d2],
-            });
-          }
-        }
-      } else if (colorIndices.length === 3) {
-        for (const d1 of DEGREE_ORDER) {
-          for (const d2 of DEGREE_ORDER) {
-            for (const d3 of DEGREE_ORDER) {
-              const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
-              cloned[0].degree = d1;
-              cloned[1].degree = d2;
-              cloned[2].degree = d3;
-              const newScore = getSlotScoreWithEmblems(cloned);
-              outcomes.push({
-                delta: newScore - currentSlotScore,
-                weight: DEGREE_WEIGHTS[d1] * DEGREE_WEIGHTS[d2] * DEGREE_WEIGHTS[d3],
-              });
-            }
-          }
-        }
-      }
-    };
-
     const simulateRandomColorDegree = (color: 'red' | 'green' | 'blue') => {
       const colorIndices = targetSlot.emblems
         .map((e, idx) => (e.color === color ? idx : -1))
@@ -705,10 +609,15 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
       const cIdx = targetSlot.emblems.findIndex((e) => e.color === color);
       if (cIdx !== -1) {
         const currentChar = targetSlot.emblems[cIdx].characteristic;
+        const otherChars = targetSlot.emblems
+          .map((e, idx) => (idx !== cIdx ? e.characteristic : null))
+          .filter(Boolean);
         const colorChars = CHARACTERISTICS_BY_COLOR[color];
-        const numOptions = colorChars.length - 1;
-        for (const gc of colorChars) {
-          if (gc.key === currentChar) continue;
+        const validOptions = colorChars.filter(
+          (c) => c.key !== currentChar && !otherChars.includes(c.key)
+        );
+        const numOptions = validOptions.length;
+        for (const gc of validOptions) {
           const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
           cloned[cIdx].characteristic = gc.key;
           const newScore = getSlotScoreWithEmblems(cloned);
@@ -730,9 +639,14 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
         const colorChars = CHARACTERISTICS_BY_COLOR[color];
         for (const idx of colorIndices) {
           const currentChar = targetSlot.emblems[idx].characteristic;
-          const numOptions = colorChars.length - 1;
-          for (const c of colorChars) {
-            if (c.key === currentChar) continue;
+          const otherChars = targetSlot.emblems
+            .map((e, i) => (i !== idx ? e.characteristic : null))
+            .filter(Boolean);
+          const validOptions = colorChars.filter(
+            (c) => c.key !== currentChar && !otherChars.includes(c.key)
+          );
+          const numOptions = validOptions.length;
+          for (const c of validOptions) {
             const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
             cloned[idx].characteristic = c.key;
             const newScore = getSlotScoreWithEmblems(cloned);
@@ -799,10 +713,15 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
       if (colorIndices.length > 0) {
         const cIdx = colorIndices[colorIndices.length - 1];
         const currentChar = targetSlot.emblems[cIdx].characteristic;
+        const otherChars = targetSlot.emblems
+          .map((e, idx) => (idx !== cIdx ? e.characteristic : null))
+          .filter(Boolean);
         const colorChars = CHARACTERISTICS_BY_COLOR[color];
-        const numOptions = colorChars.length - 1;
-        for (const gc of colorChars) {
-          if (gc.key === currentChar) continue;
+        const validOptions = colorChars.filter(
+          (c) => c.key !== currentChar && !otherChars.includes(c.key)
+        );
+        const numOptions = validOptions.length;
+        for (const gc of validOptions) {
           const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
           cloned[cIdx].characteristic = gc.key;
           const newScore = getSlotScoreWithEmblems(cloned);
@@ -843,42 +762,144 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
 
       const colorChars = CHARACTERISTICS_BY_COLOR[color];
       const numColor = colorIndices.length;
+      if (numColor === 0) return;
 
       if (numColor === 1) {
-        for (const c1 of colorChars) {
+        const cIdx = colorIndices[0];
+        const currentChar = targetSlot.emblems[cIdx].characteristic;
+        const otherChars = targetSlot.emblems
+          .map((e, idx) => (idx !== cIdx ? e.characteristic : null))
+          .filter(Boolean);
+        const validOptions = colorChars.filter(
+          (c) => c.key !== currentChar && !otherChars.includes(c.key)
+        );
+        for (const c1 of validOptions) {
           const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
-          cloned[colorIndices[0]].characteristic = c1.key;
+          cloned[cIdx].characteristic = c1.key;
           const newScore = getSlotScoreWithEmblems(cloned);
           outcomes.push({
             delta: newScore - currentSlotScore,
-            weight: 1 / colorChars.length,
+            weight: 1 / Math.max(1, validOptions.length),
           });
         }
       } else if (numColor === 2) {
-        for (const c1 of colorChars) {
-          for (const c2 of colorChars) {
+        const idx0 = colorIndices[0];
+        const idx1 = colorIndices[1];
+        const idxFixed = [0, 1, 2].find((i) => i !== idx0 && i !== idx1);
+        const fixedChar = idxFixed !== undefined ? targetSlot.emblems[idxFixed].characteristic : null;
+
+        const char0 = targetSlot.emblems[idx0].characteristic;
+        const char1 = targetSlot.emblems[idx1].characteristic;
+
+        const validPairs: { c1: Characteristic; c2: Characteristic }[] = [];
+        for (const c1Def of colorChars) {
+          if (c1Def.key === char0 || c1Def.key === fixedChar) continue;
+          for (const c2Def of colorChars) {
+            if (c2Def.key === char1 || c2Def.key === fixedChar || c2Def.key === c1Def.key) continue;
+            validPairs.push({ c1: c1Def.key, c2: c2Def.key });
+          }
+        }
+        for (const pair of validPairs) {
+          const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
+          cloned[idx0].characteristic = pair.c1;
+          cloned[idx1].characteristic = pair.c2;
+          const newScore = getSlotScoreWithEmblems(cloned);
+          outcomes.push({
+            delta: newScore - currentSlotScore,
+            weight: 1 / Math.max(1, validPairs.length),
+          });
+        }
+      } else if (numColor === 3) {
+        const char0 = targetSlot.emblems[0].characteristic;
+        const char1 = targetSlot.emblems[1].characteristic;
+        const char2 = targetSlot.emblems[2].characteristic;
+
+        const validTriplets: { c0: Characteristic; c1: Characteristic; c2: Characteristic }[] = [];
+        for (const c0Def of colorChars) {
+          if (c0Def.key === char0) continue;
+          for (const c1Def of colorChars) {
+            if (c1Def.key === char1 || c1Def.key === c0Def.key) continue;
+            for (const c2Def of colorChars) {
+              if (c2Def.key === char2 || c2Def.key === c0Def.key || c2Def.key === c1Def.key) continue;
+              validTriplets.push({ c0: c0Def.key, c1: c1Def.key, c2: c2Def.key });
+            }
+          }
+        }
+        for (const trip of validTriplets) {
+          const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
+          cloned[0].characteristic = trip.c0;
+          cloned[1].characteristic = trip.c1;
+          cloned[2].characteristic = trip.c2;
+          const newScore = getSlotScoreWithEmblems(cloned);
+          outcomes.push({
+            delta: newScore - currentSlotScore,
+            weight: 1 / Math.max(1, validTriplets.length),
+          });
+        }
+      }
+    };
+
+    const simulateColorDegreeReroll = (color: 'red' | 'green' | 'blue') => {
+      const colorIndices = targetSlot.emblems
+        .map((e, idx) => (e.color === color ? idx : -1))
+        .filter((idx) => idx !== -1);
+
+      const numColor = colorIndices.length;
+      if (numColor === 0) return;
+
+      const getDegreeOptions = (cIdx: number) => {
+        const currentDeg = targetSlot.emblems[cIdx].degree;
+        const remSum = DEGREE_ORDER.reduce(
+          (sum, d) => (d !== currentDeg ? sum + DEGREE_WEIGHTS[d] : sum),
+          0
+        );
+        return DEGREE_ORDER.filter((d) => d !== currentDeg).map((d) => ({
+          deg: d,
+          weight: DEGREE_WEIGHTS[d] / remSum,
+        }));
+      };
+
+      if (numColor === 1) {
+        const options1 = getDegreeOptions(colorIndices[0]);
+        for (const o1 of options1) {
+          const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
+          cloned[colorIndices[0]].degree = o1.deg;
+          const newScore = getSlotScoreWithEmblems(cloned);
+          outcomes.push({
+            delta: newScore - currentSlotScore,
+            weight: o1.weight,
+          });
+        }
+      } else if (numColor === 2) {
+        const options1 = getDegreeOptions(colorIndices[0]);
+        const options2 = getDegreeOptions(colorIndices[1]);
+        for (const o1 of options1) {
+          for (const o2 of options2) {
             const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
-            cloned[colorIndices[0]].characteristic = c1.key;
-            cloned[colorIndices[1]].characteristic = c2.key;
+            cloned[colorIndices[0]].degree = o1.deg;
+            cloned[colorIndices[1]].degree = o2.deg;
             const newScore = getSlotScoreWithEmblems(cloned);
             outcomes.push({
               delta: newScore - currentSlotScore,
-              weight: 1 / (colorChars.length * colorChars.length),
+              weight: o1.weight * o2.weight,
             });
           }
         }
       } else if (numColor === 3) {
-        for (const c1 of colorChars) {
-          for (const c2 of colorChars) {
-            for (const c3 of colorChars) {
+        const options1 = getDegreeOptions(0);
+        const options2 = getDegreeOptions(1);
+        const options3 = getDegreeOptions(2);
+        for (const o1 of options1) {
+          for (const o2 of options2) {
+            for (const o3 of options3) {
               const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
-              cloned[0].characteristic = c1.key;
-              cloned[1].characteristic = c2.key;
-              cloned[2].characteristic = c3.key;
+              cloned[0].degree = o1.deg;
+              cloned[1].degree = o2.deg;
+              cloned[2].degree = o3.deg;
               const newScore = getSlotScoreWithEmblems(cloned);
               outcomes.push({
                 delta: newScore - currentSlotScore,
-                weight: 1 / (colorChars.length * colorChars.length * colorChars.length),
+                weight: o1.weight * o2.weight * o3.weight,
               });
             }
           }
@@ -937,34 +958,46 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
 
       const allTraits: Trait[] = ['fractal', 'charitable', 'vampiric', 'unique', 'friendly', null];
       const numColor = colorIndices.length;
+      if (numColor === 0) return;
+
+      const getTraitOptions = (cIdx: number) => {
+        const currentTrait = targetSlot.emblems[cIdx].trait;
+        return allTraits.filter((t) => t !== currentTrait);
+      };
 
       if (numColor === 1) {
-        for (const t1 of allTraits) {
+        const options1 = getTraitOptions(colorIndices[0]);
+        for (const t1 of options1) {
           const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
           cloned[colorIndices[0]].trait = t1;
           const newScore = getSlotScoreWithEmblems(cloned);
           outcomes.push({
             delta: newScore - currentSlotScore,
-            weight: 1 / allTraits.length,
+            weight: 1 / Math.max(1, options1.length),
           });
         }
       } else if (numColor === 2) {
-        for (const t1 of allTraits) {
-          for (const t2 of allTraits) {
+        const options1 = getTraitOptions(colorIndices[0]);
+        const options2 = getTraitOptions(colorIndices[1]);
+        for (const t1 of options1) {
+          for (const t2 of options2) {
             const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
             cloned[colorIndices[0]].trait = t1;
             cloned[colorIndices[1]].trait = t2;
             const newScore = getSlotScoreWithEmblems(cloned);
             outcomes.push({
               delta: newScore - currentSlotScore,
-              weight: 1 / (allTraits.length * allTraits.length),
+              weight: 1 / Math.max(1, options1.length * options2.length),
             });
           }
         }
       } else if (numColor === 3) {
-        for (const t1 of allTraits) {
-          for (const t2 of allTraits) {
-            for (const t3 of allTraits) {
+        const options1 = getTraitOptions(0);
+        const options2 = getTraitOptions(1);
+        const options3 = getTraitOptions(2);
+        for (const t1 of options1) {
+          for (const t2 of options2) {
+            for (const t3 of options3) {
               const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
               cloned[0].trait = t1;
               cloned[1].trait = t2;
@@ -972,7 +1005,7 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
               const newScore = getSlotScoreWithEmblems(cloned);
               outcomes.push({
                 delta: newScore - currentSlotScore,
-                weight: 1 / (allTraits.length * allTraits.length * allTraits.length),
+                weight: 1 / Math.max(1, options1.length * options2.length * options3.length),
               });
             }
           }
@@ -1017,42 +1050,6 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
       case 'reroll_all_green_degrees':
         simulateColorDegreeReroll('green');
         break;
-      case 'reroll_random_degree':
-        for (let idx = 0; idx < 3; idx++) {
-          const currentDeg = targetSlot.emblems[idx].degree;
-          const remainingWeightSum = DEGREE_ORDER.reduce(
-            (sum, d) => (d !== currentDeg ? sum + DEGREE_WEIGHTS[d] : sum),
-            0
-          );
-          for (const deg of DEGREE_ORDER) {
-            if (deg === currentDeg) continue;
-            const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
-            cloned[idx].degree = deg;
-            const newScore = getSlotScoreWithEmblems(cloned);
-            outcomes.push({
-              delta: newScore - currentSlotScore,
-              weight: (1 / 3) * (DEGREE_WEIGHTS[deg] / remainingWeightSum),
-            });
-          }
-        }
-        break;
-      case 'reroll_all_degrees':
-        for (const d1 of DEGREE_ORDER) {
-          for (const d2 of DEGREE_ORDER) {
-            for (const d3 of DEGREE_ORDER) {
-              const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
-              cloned[0].degree = d1;
-              cloned[1].degree = d2;
-              cloned[2].degree = d3;
-              const newScore = getSlotScoreWithEmblems(cloned);
-              outcomes.push({
-                delta: newScore - currentSlotScore,
-                weight: DEGREE_WEIGHTS[d1] * DEGREE_WEIGHTS[d2] * DEGREE_WEIGHTS[d3],
-              });
-            }
-          }
-        }
-        break;
 
       case 'upgrade_1_random_degree':
         for (let idx = 0; idx < 3; idx++) {
@@ -1069,50 +1066,50 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
         }
         break;
 
-      case 'upgrade_lowest_degree': {
-        const degreeValues: Record<Degree, number> = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5 };
-        let minVal = 99;
-        targetSlot.emblems.forEach((e) => {
-          const val = degreeValues[e.degree] || 1;
-          if (val < minVal) minVal = val;
-        });
-
-        const lowestIndices = targetSlot.emblems
-          .map((e, idx) => ((degreeValues[e.degree] || 1) === minVal ? idx : -1))
-          .filter((idx) => idx !== -1);
-
-        for (const idx of lowestIndices) {
-          const currentDeg = targetSlot.emblems[idx].degree;
-          if (currentDeg === 'V') {
-            outcomes.push({ delta: 0, weight: 1 / lowestIndices.length });
-          } else {
-            const nextDeg = shiftDegree(currentDeg, 1);
-            const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
-            cloned[idx].degree = nextDeg;
-            const newScore = getSlotScoreWithEmblems(cloned);
-            outcomes.push({
-              delta: newScore - currentSlotScore,
-              weight: 1 / lowestIndices.length,
-            });
-          }
-        }
-        break;
-      }
-
       case 'upgrade_2_downgrade_1_degree': {
+        const degreeValues: Record<string, number> = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5 };
+
+        const getHigherOptions = (deg: Degree) => {
+          const val = degreeValues[deg];
+          const higher = DEGREE_ORDER.filter((d) => degreeValues[d] > val);
+          if (higher.length === 0) return [{ deg, weight: 1 }];
+          const sumW = higher.reduce((s, d) => s + DEGREE_WEIGHTS[d], 0);
+          return higher.map((d) => ({ deg: d, weight: DEGREE_WEIGHTS[d] / sumW }));
+        };
+
+        const getLowerOptions = (deg: Degree) => {
+          const val = degreeValues[deg];
+          const lower = DEGREE_ORDER.filter((d) => degreeValues[d] < val);
+          if (lower.length === 0) return [{ deg, weight: 1 }];
+          const sumW = lower.reduce((s, d) => s + DEGREE_WEIGHTS[d], 0);
+          return lower.map((d) => ({ deg: d, weight: DEGREE_WEIGHTS[d] / sumW }));
+        };
+
         for (let downIdx = 0; downIdx < 3; downIdx++) {
-          const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
-          cloned[downIdx].degree = shiftDegree(cloned[downIdx].degree, -1);
-          for (let upIdx = 0; upIdx < 3; upIdx++) {
-            if (upIdx !== downIdx) {
-              cloned[upIdx].degree = shiftDegree(cloned[upIdx].degree, 1);
+          const otherIndices = [0, 1, 2].filter((i) => i !== downIdx);
+          const up1Idx = otherIndices[0];
+          const up2Idx = otherIndices[1];
+
+          const downOpts = getLowerOptions(targetSlot.emblems[downIdx].degree);
+          const up1Opts = getHigherOptions(targetSlot.emblems[up1Idx].degree);
+          const up2Opts = getHigherOptions(targetSlot.emblems[up2Idx].degree);
+
+          for (const dOpt of downOpts) {
+            for (const u1Opt of up1Opts) {
+              for (const u2Opt of up2Opts) {
+                const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
+                cloned[downIdx].degree = dOpt.deg;
+                cloned[up1Idx].degree = u1Opt.deg;
+                cloned[up2Idx].degree = u2Opt.deg;
+
+                const newScore = getSlotScoreWithEmblems(cloned);
+                outcomes.push({
+                  delta: newScore - currentSlotScore,
+                  weight: (1 / 3) * dOpt.weight * u1Opt.weight * u2Opt.weight,
+                });
+              }
             }
           }
-          const newScore = getSlotScoreWithEmblems(cloned);
-          outcomes.push({
-            delta: newScore - currentSlotScore,
-            weight: 1 / 3,
-          });
         }
         break;
       }
@@ -1154,47 +1151,6 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
         simulateColorCharReroll('green');
         break;
 
-      case 'reroll_random_emblem_char':
-        for (let idx = 0; idx < 3; idx++) {
-          const color = targetSlot.emblems[idx].color;
-          const currentChar = targetSlot.emblems[idx].characteristic;
-          const colorChars = CHARACTERISTICS_BY_COLOR[color];
-          const numOptions = colorChars.length - 1;
-          for (const c of colorChars) {
-            if (c.key === currentChar) continue;
-            const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
-            cloned[idx].characteristic = c.key;
-            const newScore = getSlotScoreWithEmblems(cloned);
-            outcomes.push({
-              delta: newScore - currentSlotScore,
-              weight: (1 / 3) * (1 / Math.max(1, numOptions)),
-            });
-          }
-        }
-        break;
-
-      case 'reroll_all_chars':
-        for (const c1 of CHARACTERISTICS_BY_COLOR[targetSlot.emblems[0].color]) {
-          for (const c2 of CHARACTERISTICS_BY_COLOR[targetSlot.emblems[1].color]) {
-            for (const c3 of CHARACTERISTICS_BY_COLOR[targetSlot.emblems[2].color]) {
-              const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
-              cloned[0].characteristic = c1.key;
-              cloned[1].characteristic = c2.key;
-              cloned[2].characteristic = c3.key;
-              const newScore = getSlotScoreWithEmblems(cloned);
-              outcomes.push({
-                delta: newScore - currentSlotScore,
-                weight:
-                  1 /
-                  (CHARACTERISTICS_BY_COLOR[targetSlot.emblems[0].color].length *
-                    CHARACTERISTICS_BY_COLOR[targetSlot.emblems[1].color].length *
-                    CHARACTERISTICS_BY_COLOR[targetSlot.emblems[2].color].length),
-              });
-            }
-          }
-        }
-        break;
-
       case 'reroll_first_red_trait':
         simulateFirstColorTrait('red');
         break;
@@ -1232,44 +1188,6 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
         simulateColorTraitReroll('green');
         break;
 
-      case 'reroll_random_emblem_trait':
-        for (let idx = 0; idx < 3; idx++) {
-          const allTraits: Trait[] = ['fractal', 'charitable', 'vampiric', 'unique', 'friendly', null];
-          const currentTrait = targetSlot.emblems[idx].trait;
-          const numOptions = allTraits.length - 1;
-          for (const tr of allTraits) {
-            if (tr === currentTrait) continue;
-            const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
-            cloned[idx].trait = tr;
-            const newScore = getSlotScoreWithEmblems(cloned);
-            outcomes.push({
-              delta: newScore - currentSlotScore,
-              weight: (1 / 3) * (1 / Math.max(1, numOptions)),
-            });
-          }
-        }
-        break;
-
-      case 'reroll_all_traits': {
-        const allTraits: Trait[] = ['fractal', 'charitable', 'vampiric', 'unique', 'friendly', null];
-        for (const t1 of allTraits) {
-          for (const t2 of allTraits) {
-            for (const t3 of allTraits) {
-              const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
-              cloned[0].trait = t1;
-              cloned[1].trait = t2;
-              cloned[2].trait = t3;
-              const newScore = getSlotScoreWithEmblems(cloned);
-              outcomes.push({
-                delta: newScore - currentSlotScore,
-                weight: 1 / (allTraits.length * allTraits.length * allTraits.length),
-              });
-            }
-          }
-        }
-        break;
-      }
-
       case 'reroll_trait_and_degree': {
         const allTraits: Trait[] = ['fractal', 'charitable', 'vampiric', 'unique', 'friendly', null];
         for (let idx = 0; idx < 3; idx++) {
@@ -1304,8 +1222,13 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
         for (let idx = 0; idx < 3; idx++) {
           const color = targetSlot.emblems[idx].color;
           const colorChars = CHARACTERISTICS_BY_COLOR[color];
+          const otherChars = targetSlot.emblems
+            .map((e, i) => (i !== idx ? e.characteristic : null))
+            .filter(Boolean);
 
-          for (const c of colorChars) {
+          const validChars = colorChars.filter((c) => !otherChars.includes(c.key));
+
+          for (const c of validChars) {
             for (const deg of DEGREE_ORDER) {
               for (const tr of allTraits) {
                 const cloned: [EmblemState, EmblemState, EmblemState] = JSON.parse(JSON.stringify(targetSlot.emblems));
@@ -1315,7 +1238,7 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
                 const newScore = getSlotScoreWithEmblems(cloned);
                 const w =
                   (1 / 3) *
-                  (1 / colorChars.length) *
+                  (1 / validChars.length) *
                   DEGREE_WEIGHTS[deg] *
                   (1 / allTraits.length);
                 outcomes.push({
@@ -1336,11 +1259,17 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
         const c2List = CHARACTERISTICS_BY_COLOR[targetSlot.emblems[2].color];
 
         const sampleSize = 120;
-        for (let i = 0; i < sampleSize; i++) {
+        let count = 0;
+        let attempts = 0;
+        while (count < sampleSize && attempts < 10000) {
+          attempts++;
           const c0 = c0List[Math.floor(Math.random() * c0List.length)];
           const c1 = c1List[Math.floor(Math.random() * c1List.length)];
           const c2 = c2List[Math.floor(Math.random() * c2List.length)];
 
+          if (c0.key === c1.key || c1.key === c2.key || c0.key === c2.key) continue;
+
+          count++;
           const d0 = DEGREE_ORDER[Math.floor(Math.random() * DEGREE_ORDER.length)];
           const d1 = DEGREE_ORDER[Math.floor(Math.random() * DEGREE_ORDER.length)];
           const d2 = DEGREE_ORDER[Math.floor(Math.random() * DEGREE_ORDER.length)];

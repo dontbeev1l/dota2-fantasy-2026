@@ -71,10 +71,7 @@ export const TOKEN_CATEGORIES: TokenCategory[] = [
       'reroll_all_red_degrees',
       'reroll_all_blue_degrees',
       'reroll_all_green_degrees',
-      'reroll_random_degree',
-      'reroll_all_degrees',
       'upgrade_1_random_degree',
-      'upgrade_lowest_degree',
       'upgrade_2_downgrade_1_degree',
     ],
   },
@@ -94,8 +91,6 @@ export const TOKEN_CATEGORIES: TokenCategory[] = [
       'reroll_all_red_chars',
       'reroll_all_blue_chars',
       'reroll_all_green_chars',
-      'reroll_random_emblem_char',
-      'reroll_all_chars',
     ],
   },
   {
@@ -114,8 +109,6 @@ export const TOKEN_CATEGORIES: TokenCategory[] = [
       'reroll_all_red_traits',
       'reroll_all_blue_traits',
       'reroll_all_green_traits',
-      'reroll_random_emblem_trait',
-      'reroll_all_traits',
     ],
   },
 ];
@@ -237,8 +230,26 @@ export class FantasyApp extends HTMLElement {
           this.selectedTeamIdx = parsed.selectedTeamIdx;
         }
       }
+      this.sanitizeSlotStates();
     } catch (e) {
       console.warn('Не вдалося завантажити стан з localStorage:', e);
+    }
+  }
+
+  private sanitizeSlotStates() {
+    for (const slot of this.slotStates) {
+      const used = new Set<Characteristic>();
+      for (let j = 0; j < 3; j++) {
+        const emb = slot.emblems[j];
+        if (used.has(emb.characteristic)) {
+          const colorList = CHARACTERISTICS_BY_COLOR[emb.color];
+          const available = colorList.find((c) => !used.has(c.key));
+          if (available) {
+            emb.characteristic = available.key;
+          }
+        }
+        used.add(emb.characteristic);
+      }
     }
   }
 
@@ -411,6 +422,9 @@ export class FantasyApp extends HTMLElement {
 
   private renderEmblemItem(sIdx: number, emb: EmblemState, eIdx: number): string {
     const colorCharList = CHARACTERISTICS_BY_COLOR[emb.color];
+    const otherCharsOnSlot = this.slotStates[sIdx].emblems
+      .filter((_, idx) => idx !== eIdx)
+      .map((e) => e.characteristic);
 
     return `
       <div class="emblem-item color-${emb.color}" data-slot="${sIdx}" data-emblem="${eIdx}">
@@ -421,9 +435,13 @@ export class FantasyApp extends HTMLElement {
               .map(
                 (c) => {
                   const charName = this.currentLang === 'en' ? c.nameEn : c.nameUk;
+                  const isUsed = otherCharsOnSlot.includes(c.key);
+                  const suffix = isUsed
+                    ? ` (${this.currentLang === 'en' ? 'Used' : 'Вже на стягу'})`
+                    : '';
                   return `
-                    <option value="${c.key}" ${c.key === emb.characteristic ? 'selected' : ''}>
-                      ${c.icon} ${charName}
+                    <option value="${c.key}" ${c.key === emb.characteristic ? 'selected' : ''} ${isUsed ? 'disabled' : ''}>
+                      ${c.icon} ${charName}${suffix}
                     </option>
                   `;
                 }
@@ -475,7 +493,19 @@ export class FantasyApp extends HTMLElement {
       if (target.classList.contains('char-select')) {
         const sIdx = parseInt(target.getAttribute('data-slot') || '0', 10);
         const eIdx = parseInt(target.getAttribute('data-emblem') || '0', 10);
-        this.slotStates[sIdx].emblems[eIdx].characteristic = (target as HTMLSelectElement).value as Characteristic;
+        const newChar = (target as HTMLSelectElement).value as Characteristic;
+
+        const duplicateIdx = this.slotStates[sIdx].emblems.findIndex(
+          (e, idx) => idx !== eIdx && e.characteristic === newChar
+        );
+
+        if (duplicateIdx !== -1) {
+          const oldChar = this.slotStates[sIdx].emblems[eIdx].characteristic;
+          this.slotStates[sIdx].emblems[duplicateIdx].characteristic = oldChar;
+        }
+
+        this.slotStates[sIdx].emblems[eIdx].characteristic = newChar;
+        this.render();
         this.recalculateAll();
       } else if (target.classList.contains('trait-select')) {
         const sIdx = parseInt(target.getAttribute('data-slot') || '0', 10);
