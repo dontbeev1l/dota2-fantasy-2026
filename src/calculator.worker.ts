@@ -149,10 +149,10 @@ export const REPLACEMENT_TOKENS: TokenDefinition[] = [
   },
   {
     id: 'upgrade_1_random_degree',
-    nameUk: 'Покращити одну випадкову якість',
-    nameEn: 'Upgrade tier of one random emblem',
-    descriptionUk: 'Випадкова емблема підвищує свій ступінь на +1 рівень',
-    descriptionEn: 'Random emblem increases its tier by +1',
+    nameUk: 'Покращення 1 випадкової якості',
+    nameEn: 'Upgrade 1 random emblem tier',
+    descriptionUk: 'Покращення ступеня випадкової емблеми на +1 рівень',
+    descriptionEn: 'Upgrade tier of 1 random emblem by +1',
   },
   {
     id: 'upgrade_2_downgrade_1_degree',
